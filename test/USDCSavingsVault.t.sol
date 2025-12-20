@@ -279,6 +279,10 @@ contract USDCSavingsVaultTest is Test {
         assertEq(vault.pendingWithdrawals(), 50_000e6);
         assertEq(vault.withdrawalQueueLength(), 1);
 
+        // ESCROW: Alice's shares should be transferred to vault
+        assertEq(shares.balanceOf(alice), 50_000e6); // 100k - 50k escrowed
+        assertEq(shares.balanceOf(address(vault)), 50_000e6); // Escrowed
+
         IVault.WithdrawalRequest memory request = vault.getWithdrawalRequest(0);
         assertEq(request.requester, alice);
         assertEq(request.shares, 50_000e6);
@@ -375,6 +379,11 @@ contract USDCSavingsVaultTest is Test {
         vm.prank(bob);
         vault.requestWithdrawal(50_000e6); // Request 1
 
+        // After requests: Alice has 50k, Bob has 50k (rest escrowed)
+        assertEq(shares.balanceOf(alice), 50_000e6);
+        assertEq(shares.balanceOf(bob), 50_000e6);
+        assertEq(shares.balanceOf(address(vault)), 100_000e6); // Both escrowed
+
         vm.warp(block.timestamp + COOLDOWN + 1);
 
         // Process only 1
@@ -382,8 +391,11 @@ contract USDCSavingsVaultTest is Test {
         vault.fulfillWithdrawals(1);
 
         // Alice should be processed first (FIFO)
+        // Alice's escrowed shares burned, her balance stays 50k
         assertEq(shares.balanceOf(alice), 50_000e6);
-        assertEq(shares.balanceOf(bob), 100_000e6); // Bob still has all shares
+        // Bob's shares still escrowed
+        assertEq(shares.balanceOf(bob), 50_000e6);
+        assertEq(shares.balanceOf(address(vault)), 50_000e6); // Only Bob's escrow remains
     }
 
     function test_fulfillWithdrawals_respectsCooldown() public {
@@ -635,14 +647,18 @@ contract USDCSavingsVaultTest is Test {
         vm.prank(alice);
         vault.requestWithdrawal(50_000e6);
 
+        // After request: 50k escrowed in vault
         assertEq(vault.pendingWithdrawals(), 50_000e6);
+        assertEq(shares.balanceOf(alice), 50_000e6);
+        assertEq(shares.balanceOf(address(vault)), 50_000e6);
 
         vault.cancelWithdrawal(0);
 
         assertEq(vault.pendingWithdrawals(), 0);
 
-        // Alice still has all shares
+        // Escrowed shares returned to Alice
         assertEq(shares.balanceOf(alice), 100_000e6);
+        assertEq(shares.balanceOf(address(vault)), 0);
     }
 
     // ============ Share Transfer Tests ============
@@ -658,7 +674,7 @@ contract USDCSavingsVaultTest is Test {
         assertEq(shares.balanceOf(bob), 50_000e6);
     }
 
-    function test_withdrawalRights_followShareOwnership() public {
+    function test_escrow_preventsDoubleSpend() public {
         vault.setWithdrawalBuffer(100_000e6);
 
         vm.prank(alice);
@@ -666,23 +682,49 @@ contract USDCSavingsVaultTest is Test {
 
         navOracle.reportTotalAssets(100_000e6);
 
-        // Alice requests withdrawal
+        // Alice requests withdrawal of 50k -> shares escrowed
         vm.prank(alice);
         vault.requestWithdrawal(50_000e6);
 
-        // Alice transfers shares to Bob before fulfillment
+        // Alice only has 50k left (50k escrowed in vault)
+        assertEq(shares.balanceOf(alice), 50_000e6);
+        assertEq(shares.balanceOf(address(vault)), 50_000e6);
+
+        // Alice can only transfer her remaining 50k, not the escrowed shares
         vm.prank(alice);
-        shares.transfer(bob, 100_000e6);
+        shares.transfer(bob, 50_000e6);
+
+        assertEq(shares.balanceOf(alice), 0);
+        assertEq(shares.balanceOf(bob), 50_000e6);
 
         vm.warp(block.timestamp + COOLDOWN + 1);
 
-        // Process withdrawal - but Alice has no shares now
+        // Process withdrawal - escrowed shares are burned from vault, USDC goes to Alice
+        uint256 aliceUsdcBefore = usdc.balanceOf(alice);
+
         vm.prank(operator);
         vault.fulfillWithdrawals(10);
 
-        // Request was processed but with 0 shares burned (Alice has none)
-        assertEq(shares.balanceOf(alice), 0);
-        assertEq(shares.balanceOf(bob), 100_000e6);
+        // Alice receives USDC for her escrowed shares
+        assertEq(usdc.balanceOf(alice), aliceUsdcBefore + 50_000e6);
+        // Bob still has his transferred shares
+        assertEq(shares.balanceOf(bob), 50_000e6);
+        // Escrow is now empty
+        assertEq(shares.balanceOf(address(vault)), 0);
+    }
+
+    function test_escrow_cannotTransferMoreThanAvailable() public {
+        vm.prank(alice);
+        vault.deposit(100_000e6);
+
+        // Alice requests withdrawal of 50k -> 50k escrowed
+        vm.prank(alice);
+        vault.requestWithdrawal(50_000e6);
+
+        // Alice tries to transfer 60k but only has 50k available
+        vm.prank(alice);
+        vm.expectRevert(VaultShare.InsufficientBalance.selector);
+        shares.transfer(bob, 60_000e6);
     }
 
     // ============ RoleManager Ownership Tests ============

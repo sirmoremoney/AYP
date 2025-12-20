@@ -72,13 +72,17 @@ contract VaultShare is IERC20 {
      * @param to Destination address
      * @param amount Amount to transfer
      * @return success True if transfer succeeded
+     * @dev Vault can transfer without allowance (for escrow operations)
      */
     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-        uint256 currentAllowance = allowance[from][msg.sender];
-        if (currentAllowance != type(uint256).max) {
-            if (currentAllowance < amount) revert InsufficientAllowance();
-            unchecked {
-                allowance[from][msg.sender] = currentAllowance - amount;
+        // Vault can transfer without allowance (trusted for escrow)
+        if (msg.sender != vault) {
+            uint256 currentAllowance = allowance[from][msg.sender];
+            if (currentAllowance != type(uint256).max) {
+                if (currentAllowance < amount) revert InsufficientAllowance();
+                unchecked {
+                    allowance[from][msg.sender] = currentAllowance - amount;
+                }
             }
         }
         return _transfer(from, to, amount);
