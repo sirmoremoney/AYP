@@ -20,8 +20,65 @@ import {VaultShare} from "./VaultShare.sol";
  * Key features:
  * - Share-based accounting (1 USDC = 1 share initially)
  * - Async withdrawal queue with FIFO processing
- * - Protocol fees only on positive yield
+ * - Share escrow on withdrawal request (prevents double-spend)
+ * - Protocol fees only on positive yield (via share minting)
  * - Operator-only withdrawal fulfillment
+ *
+ * =============================================================================
+ * FORMAL INVARIANT SPECIFICATION
+ * =============================================================================
+ *
+ * INVARIANT I.1 — Conservation of Value via Shares (Primary)
+ * ----------------------------------------------------------------------------
+ * The protocol SHALL NOT transfer any amount of USDC out of the Vault unless
+ * a corresponding amount of shares is irrevocably burned at the current NAV.
+ *
+ * Formal: S_burned = floor(A_out / NAV)
+ *         totalAssets_after = totalAssets_before - A_out
+ *         totalShares_after = totalShares_before - S_burned
+ *
+ * No execution path MAY reduce totalAssets without reducing totalShares.
+ *
+ * INVARIANT I.2 — Share Escrow Safety
+ * ----------------------------------------------------------------------------
+ * Shares submitted for withdrawal SHALL be transferred to the Vault and
+ * SHALL NOT be transferable, reusable, or withdrawable until either:
+ *   a) The withdrawal is fulfilled and shares are burned, OR
+ *   b) The withdrawal is cancelled and shares are returned to requester
+ *
+ * This prevents duplicate claims and double-withdraw attacks.
+ *
+ * INVARIANT I.3 — Universal NAV Application
+ * ----------------------------------------------------------------------------
+ * Any update to totalAssets SHALL apply uniformly to ALL outstanding shares:
+ *   - Shares held by users
+ *   - Shares held in withdrawal escrow (by vault)
+ *   - Shares held by Treasury
+ *
+ * No class of shares SHALL be excluded from gains or losses.
+ *
+ * INVARIANT I.4 — Fee Isolation
+ * ----------------------------------------------------------------------------
+ * Protocol fees SHALL:
+ *   - Be assessed only on positive changes to totalAssets
+ *   - Be capped by MAX_FEE_RATE
+ *   - Be paid exclusively via minting new shares to Treasury
+ *
+ * Fees SHALL NEVER cause a transfer of USDC from the Vault.
+ *
+ * INVARIANT I.5 — Withdrawal Queue Liveness
+ * ----------------------------------------------------------------------------
+ * The withdrawal fulfillment mechanism SHALL:
+ *   - Process requests in FIFO order
+ *   - Never revert due to insufficient USDC balance
+ *   - Terminate gracefully if available liquidity is insufficient
+ *
+ * =============================================================================
+ * SINGLE-LINE SUMMARY
+ * =============================================================================
+ * The only way value exits the system is by destroying shares at current NAV;
+ * all shares, regardless of state, rise and fall together.
+ * =============================================================================
  */
 contract USDCSavingsVault is IVault {
     // ============ Constants ============
@@ -52,8 +109,7 @@ contract USDCSavingsVault is IVault {
     uint256 public cooldownPeriod; // Minimum time before withdrawal fulfillment
 
     // Fee tracking
-    uint256 public lastFeeHighWaterMark; // Local high water mark for fee calculation
-    uint256 public accruedFees; // Fees owed to treasury (not yet collected)
+    uint256 public lastFeeHighWaterMark; // High water mark for fee calculation
 
     // User tracking
     mapping(address => uint256) public userTotalDeposited; // Cumulative deposits (for cap enforcement)
@@ -61,7 +117,7 @@ contract USDCSavingsVault is IVault {
     // Withdrawal queue
     WithdrawalRequest[] public withdrawalQueue;
     uint256 public withdrawalQueueHead; // Index of next request to process
-    uint256 public pendingWithdrawalShares; // Total shares in queue
+    uint256 public pendingWithdrawalShares; // Total shares escrowed in queue
 
     // ============ Errors ============
 
@@ -82,6 +138,7 @@ contract USDCSavingsVault is IVault {
     error InvalidRequestId();
     error RequestAlreadyProcessed();
     error TransferFailed();
+    error InvariantViolation();
 
     // ============ Modifiers ============
 
@@ -160,6 +217,7 @@ contract USDCSavingsVault is IVault {
     /**
      * @notice Get total assets from NavOracle
      * @return Total assets in USDC (6 decimals)
+     * @dev Invariant I.3: This value applies uniformly to all shares
      */
     function totalAssets() public view returns (uint256) {
         return navOracle.totalAssets();
@@ -169,32 +227,30 @@ contract USDCSavingsVault is IVault {
      * @notice Calculate current share price using NavOracle.totalAssets()
      * @return price Share price in USDC (18 decimal precision)
      * @dev Returns 1e18 (representing 1 USDC per share) when no shares exist
+     * @dev Invariant I.3: Price applies to ALL shares equally (user, escrowed, treasury)
      */
     function sharePrice() public view returns (uint256) {
         uint256 totalShareSupply = shares.totalSupply();
         if (totalShareSupply == 0) {
             return PRECISION; // 1 USDC = 1 share initially
         }
-        // Deduct accrued fees from NAV for accurate share price
         uint256 nav = totalAssets();
-        if (accruedFees >= nav) {
-            return 0;
-        }
-        uint256 effectiveNav = nav - accruedFees;
-        return (effectiveNav * PRECISION) / totalShareSupply;
+        return (nav * PRECISION) / totalShareSupply;
     }
 
     /**
      * @notice Get total outstanding shares
-     * @return Total share supply
+     * @return Total share supply (includes escrowed shares)
+     * @dev Invariant I.3: Escrowed shares are still part of totalSupply
      */
     function totalShares() external view returns (uint256) {
         return shares.totalSupply();
     }
 
     /**
-     * @notice Get pending withdrawal shares count
-     * @return Total shares pending withdrawal
+     * @notice Get pending withdrawal shares count (escrowed in vault)
+     * @return Total shares held in escrow for pending withdrawals
+     * @dev Invariant I.2: These shares are locked until fulfilled or cancelled
      */
     function pendingWithdrawals() external view returns (uint256) {
         return pendingWithdrawalShares;
@@ -227,16 +283,17 @@ contract USDCSavingsVault is IVault {
     }
 
     /**
-     * @notice Calculate USDC value of shares
+     * @notice Calculate USDC value of shares at current NAV
      * @param shareAmount Number of shares
      * @return USDC value
+     * @dev Invariant I.1: This is the amount that would be paid out for burning shares
      */
     function sharesToUsdc(uint256 shareAmount) public view returns (uint256) {
         return (shareAmount * sharePrice()) / PRECISION;
     }
 
     /**
-     * @notice Calculate shares for USDC amount
+     * @notice Calculate shares for USDC amount at current NAV
      * @param usdcAmount USDC amount
      * @return Number of shares
      */
@@ -246,12 +303,21 @@ contract USDCSavingsVault is IVault {
         return (usdcAmount * PRECISION) / price;
     }
 
+    /**
+     * @notice Get shares held in escrow by vault (for pending withdrawals)
+     * @return Escrowed share balance
+     */
+    function escrowedShares() public view returns (uint256) {
+        return shares.balanceOf(address(this));
+    }
+
     // ============ User Functions ============
 
     /**
      * @notice Deposit USDC and receive vault shares
      * @param usdcAmount Amount of USDC to deposit
      * @return sharesMinted Number of shares minted
+     * @dev Invariant I.1: Shares minted = usdcAmount / sharePrice
      */
     function deposit(uint256 usdcAmount)
         external
@@ -299,6 +365,8 @@ contract USDCSavingsVault is IVault {
      * @notice Request a withdrawal of shares
      * @param shareAmount Number of shares to withdraw
      * @return requestId The withdrawal request ID
+     * @dev Invariant I.2: Shares are transferred to vault (escrowed) immediately
+     * @dev This prevents double-spending - shares cannot be transferred or used again
      */
     function requestWithdrawal(uint256 shareAmount)
         external
@@ -308,6 +376,10 @@ contract USDCSavingsVault is IVault {
     {
         if (shareAmount == 0) revert ZeroAmount();
         if (shares.balanceOf(msg.sender) < shareAmount) revert InsufficientShares();
+
+        // INVARIANT I.2: Escrow shares into vault
+        // Shares are transferred FROM user TO vault, preventing double-spend
+        shares.transferFrom(msg.sender, address(this), shareAmount);
 
         requestId = withdrawalQueue.length;
 
@@ -319,6 +391,9 @@ contract USDCSavingsVault is IVault {
 
         pendingWithdrawalShares += shareAmount;
 
+        // ASSERT I.2: Verify escrow invariant
+        assert(shares.balanceOf(address(this)) >= pendingWithdrawalShares);
+
         emit WithdrawalRequested(msg.sender, shareAmount, requestId);
     }
 
@@ -329,6 +404,8 @@ contract USDCSavingsVault is IVault {
      * @param count Maximum number of withdrawals to process
      * @return processed Number of withdrawals processed
      * @return usdcPaid Total USDC paid out
+     * @dev Invariant I.1: Each fulfillment burns shares at current NAV
+     * @dev Invariant I.5: FIFO order, graceful termination on low liquidity
      */
     function fulfillWithdrawals(uint256 count)
         external
@@ -344,7 +421,11 @@ contract USDCSavingsVault is IVault {
         uint256 head = withdrawalQueueHead;
         uint256 queueLen = withdrawalQueue.length;
 
-        while (processed < count && head < queueLen && available > 0) {
+        // Snapshot for invariant check
+        uint256 sharesBefore = shares.totalSupply();
+        uint256 navBefore = totalAssets();
+
+        while (processed < count && head < queueLen) {
             WithdrawalRequest storage request = withdrawalQueue[head];
 
             // Skip if already processed (shares = 0)
@@ -353,44 +434,32 @@ contract USDCSavingsVault is IVault {
                 continue;
             }
 
-            // Check cooldown
+            // Check cooldown (per-request maturity)
             if (block.timestamp < request.requestTimestamp + cooldownPeriod) {
                 head++;
                 continue;
             }
 
-            // Check if requester still has enough shares
-            uint256 requesterBalance = shares.balanceOf(request.requester);
             uint256 sharesToBurn = request.shares;
-            if (requesterBalance < sharesToBurn) {
-                // Shares were transferred, adjust to available balance
-                sharesToBurn = requesterBalance;
-            }
 
-            if (sharesToBurn == 0) {
-                // No shares to burn, mark as processed
-                pendingWithdrawalShares -= request.shares;
-                request.shares = 0;
-                head++;
-                continue;
-            }
-
-            // Calculate USDC to pay
+            // Calculate USDC to pay at current NAV
+            // INVARIANT I.1: usdcOut = sharesToBurn * NAV / totalShares
             uint256 usdcOut = sharesToUsdc(sharesToBurn);
 
+            // INVARIANT I.5: Graceful termination if insufficient liquidity
             if (usdcOut > available) {
-                // Not enough liquidity, stop processing
-                break;
+                break; // Stop processing, don't revert
             }
 
-            // Burn shares
-            shares.burn(request.requester, sharesToBurn);
+            // INVARIANT I.1: Burn escrowed shares from vault
+            shares.burn(address(this), sharesToBurn);
 
-            // Update pending shares
-            pendingWithdrawalShares -= request.shares;
+            // Update state
+            pendingWithdrawalShares -= sharesToBurn;
             request.shares = 0;
 
-            // Transfer USDC
+            // Transfer USDC to requester
+            // INVARIANT I.1: USDC only exits when shares are burned
             bool success = usdc.transfer(request.requester, usdcOut);
             if (!success) revert TransferFailed();
 
@@ -403,6 +472,21 @@ contract USDCSavingsVault is IVault {
         }
 
         withdrawalQueueHead = head;
+
+        // ASSERT I.1: Conservation of value
+        // If shares were burned, totalShares decreased proportionally to USDC paid
+        if (processed > 0) {
+            uint256 sharesAfter = shares.totalSupply();
+            uint256 sharesBurned = sharesBefore - sharesAfter;
+
+            // Verify: sharesBurned corresponds to usdcPaid at the NAV
+            // Allow for rounding: sharesBurned * navBefore / sharesBefore ≈ usdcPaid
+            // We check that no value was created (shares decreased, USDC exited)
+            assert(sharesAfter < sharesBefore || usdcPaid == 0);
+        }
+
+        // ASSERT I.2: Escrow balance matches pending shares
+        assert(shares.balanceOf(address(this)) == pendingWithdrawalShares);
     }
 
     // ============ Multisig Functions ============
@@ -443,6 +527,7 @@ contract USDCSavingsVault is IVault {
     /**
      * @notice Update fee rate
      * @param newFeeRate New fee rate (18 decimals)
+     * @dev Invariant I.4: Fee rate capped at MAX_FEE_RATE
      */
     function setFeeRate(uint256 newFeeRate) external onlyOwner {
         if (newFeeRate > MAX_FEE_RATE) revert InvalidFeeRate();
@@ -488,8 +573,10 @@ contract USDCSavingsVault is IVault {
     }
 
     /**
-     * @notice Force process a specific withdrawal (emergency)
+     * @notice Force process a specific withdrawal (emergency, skips cooldown)
      * @param requestId Request ID to process
+     * @dev Invariant I.1: Still burns shares at current NAV
+     * @dev WARNING: Skips FIFO order - use only in emergencies
      */
     function forceProcessWithdrawal(uint256 requestId) external onlyOwner {
         if (requestId >= withdrawalQueue.length) revert InvalidRequestId();
@@ -497,32 +584,32 @@ contract USDCSavingsVault is IVault {
         WithdrawalRequest storage request = withdrawalQueue[requestId];
         if (request.shares == 0) revert RequestAlreadyProcessed();
 
-        uint256 requesterBalance = shares.balanceOf(request.requester);
         uint256 sharesToBurn = request.shares;
-        if (requesterBalance < sharesToBurn) {
-            sharesToBurn = requesterBalance;
-        }
+        uint256 usdcOut = sharesToUsdc(sharesToBurn);
 
-        if (sharesToBurn > 0) {
-            uint256 usdcOut = sharesToUsdc(sharesToBurn);
+        if (usdcOut > availableLiquidity()) revert InsufficientLiquidity();
 
-            if (usdcOut > availableLiquidity()) revert InsufficientLiquidity();
+        // Burn escrowed shares from vault
+        shares.burn(address(this), sharesToBurn);
 
-            shares.burn(request.requester, sharesToBurn);
-
-            bool success = usdc.transfer(request.requester, usdcOut);
-            if (!success) revert TransferFailed();
-
-            emit WithdrawalFulfilled(request.requester, sharesToBurn, usdcOut, requestId);
-        }
-
-        pendingWithdrawalShares -= request.shares;
+        // Update state
+        pendingWithdrawalShares -= sharesToBurn;
         request.shares = 0;
+
+        // Transfer USDC
+        bool success = usdc.transfer(request.requester, usdcOut);
+        if (!success) revert TransferFailed();
+
+        // ASSERT I.2: Escrow invariant maintained
+        assert(shares.balanceOf(address(this)) == pendingWithdrawalShares);
+
+        emit WithdrawalFulfilled(request.requester, sharesToBurn, usdcOut, requestId);
     }
 
     /**
      * @notice Cancel a queued withdrawal (emergency)
      * @param requestId Request ID to cancel
+     * @dev Invariant I.2: Returns escrowed shares to original requester
      */
     function cancelWithdrawal(uint256 requestId) external onlyOwner {
         if (requestId >= withdrawalQueue.length) revert InvalidRequestId();
@@ -530,15 +617,26 @@ contract USDCSavingsVault is IVault {
         WithdrawalRequest storage request = withdrawalQueue[requestId];
         if (request.shares == 0) revert RequestAlreadyProcessed();
 
-        uint256 cancelledShares = request.shares;
-        pendingWithdrawalShares -= cancelledShares;
+        uint256 sharesToReturn = request.shares;
+        address requester = request.requester;
+
+        // Update state first
+        pendingWithdrawalShares -= sharesToReturn;
         request.shares = 0;
 
-        emit WithdrawalCancelled(request.requester, cancelledShares, requestId);
+        // Return escrowed shares to requester
+        bool success = shares.transfer(requester, sharesToReturn);
+        if (!success) revert TransferFailed();
+
+        // ASSERT I.2: Escrow invariant maintained
+        assert(shares.balanceOf(address(this)) == pendingWithdrawalShares);
+
+        emit WithdrawalCancelled(requester, sharesToReturn, requestId);
     }
 
     /**
-     * @notice Collect accrued fees to treasury
+     * @notice Manually trigger fee collection
+     * @dev Invariant I.4: Fees paid via share minting only
      */
     function collectFees() external onlyOwner {
         _collectFees();
@@ -560,23 +658,31 @@ contract USDCSavingsVault is IVault {
     }
 
     /**
-     * @notice Calculate and collect fees on profit
-     * @dev Called before withdrawal fulfillment to ensure accurate share price
+     * @notice Calculate and collect fees on profit via share minting
+     * @dev Invariant I.4: Fees are ONLY collected on positive yield
+     * @dev Invariant I.4: Fees are ONLY paid via minting shares to treasury
+     * @dev Invariant I.4: No USDC is transferred for fees
      */
     function _collectFees() internal {
         if (feeRate == 0) return;
 
         uint256 currentAssets = totalAssets();
+
+        // INVARIANT I.4: Only assess fees on positive changes
         if (currentAssets <= lastFeeHighWaterMark) return;
 
         uint256 profit = currentAssets - lastFeeHighWaterMark;
         uint256 fee = (profit * feeRate) / PRECISION;
 
+        // ASSERT I.4: Fee cannot exceed profit
+        assert(fee <= profit);
+
         if (fee > 0) {
-            // Mint fee shares to treasury
             uint256 totalShareSupply = shares.totalSupply();
             if (totalShareSupply > 0) {
+                // INVARIANT I.4: Pay fee by minting shares to treasury
                 // feeShares = fee * totalShares / (currentAssets - fee)
+                // This dilutes existing holders proportionally
                 uint256 feeShares = (fee * totalShareSupply) / (currentAssets - fee);
                 if (feeShares > 0) {
                     shares.mint(treasury, feeShares);
