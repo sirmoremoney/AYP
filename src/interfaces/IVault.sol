@@ -34,6 +34,7 @@ interface IVault {
     event PriceHWMUpdated(uint256 oldHWM, uint256 newHWM);
     event WithdrawalForced(address indexed user, uint256 shares, uint256 usdcAmount, uint256 requestId);
     event OrphanedSharesRecovered(uint256 amount);
+    event WithdrawalsPurged(uint256 count);
 
     // ============ View Functions ============
 
