@@ -142,6 +142,7 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
     uint256 public constant MIN_COOLDOWN = 1 days;
     uint256 public constant MAX_COOLDOWN = 30 days;
     uint256 public constant CANCELLATION_WINDOW = 1 hours; // H-3: User can cancel within this window
+    uint256 public constant MAX_PENDING_PER_USER = 10; // M-1: Limit pending requests per user
 
     // Initial share price: 1 USDC (6 decimals) = 1 share (18 decimals)
     // Price is scaled to 18 decimals: 1e6 means 1 USDC per share
@@ -181,6 +182,7 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
     WithdrawalRequest[] public withdrawalQueue;
     uint256 public withdrawalQueueHead; // Index of next request to process
     uint256 public pendingWithdrawalShares; // Total shares escrowed in queue
+    mapping(address => uint256) public userPendingRequests; // M-1: Track pending requests per user
 
     // ============ Errors ============
 
@@ -204,6 +206,7 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
     error TransferFailed();
     error InvariantViolation();
     error Unauthorized();
+    error TooManyPendingRequests();
 
     // ============ Modifiers ============
 
@@ -471,6 +474,9 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
         if (shareAmount == 0) revert ZeroAmount();
         if (shares.balanceOf(msg.sender) < shareAmount) revert InsufficientShares();
 
+        // M-1: Check per-user pending request limit
+        if (userPendingRequests[msg.sender] >= MAX_PENDING_PER_USER) revert TooManyPendingRequests();
+
         // INVARIANT I.2: Escrow shares into vault
         // Shares are transferred FROM user TO vault, preventing double-spend
         shares.transferFrom(msg.sender, address(this), shareAmount);
@@ -484,6 +490,7 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
         }));
 
         pendingWithdrawalShares += shareAmount;
+        userPendingRequests[msg.sender]++;
 
         // ASSERT I.2: Verify escrow invariant
         assert(shares.balanceOf(address(this)) >= pendingWithdrawalShares);
@@ -550,6 +557,7 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
 
             // Update state
             pendingWithdrawalShares -= sharesToBurn;
+            userPendingRequests[request.requester]--;
             request.shares = 0;
 
             // Track withdrawal for NAV calculation
@@ -690,6 +698,7 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
 
         // Update state
         pendingWithdrawalShares -= sharesToBurn;
+        userPendingRequests[request.requester]--;
         request.shares = 0;
 
         // Track withdrawal for NAV calculation
@@ -729,6 +738,7 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
 
         // Update state first
         pendingWithdrawalShares -= sharesToReturn;
+        userPendingRequests[requester]--;
         request.shares = 0;
 
         // Return escrowed shares to requester
