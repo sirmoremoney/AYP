@@ -400,6 +400,10 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
     {
         if (usdcAmount == 0) revert ZeroAmount();
 
+        // Collect any pending fees before deposit
+        // This ensures depositors buy at the post-fee price
+        _collectFees();
+
         // Check per-user cap
         if (perUserCap > 0) {
             if (userTotalDeposited[msg.sender] + usdcAmount > perUserCap) {
