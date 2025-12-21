@@ -747,6 +747,18 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
     }
 
     /**
+     * @notice Reset price HWM to current share price (M-4 emergency fix)
+     * @dev Use if HWM was incorrectly set due to oracle error or misreporting.
+     *      This allows fee collection to resume from current price.
+     *      WARNING: Should only be used in emergencies as it may skip owed fees.
+     */
+    function resetPriceHWM() external onlyOwner {
+        uint256 oldHWM = priceHighWaterMark;
+        priceHighWaterMark = sharePrice();
+        emit PriceHWMUpdated(oldHWM, priceHighWaterMark);
+    }
+
+    /**
      * @notice Report yield and collect fees atomically
      * @param yieldDelta Change in yield (positive for gains, negative for losses)
      * @dev This is the RECOMMENDED way to report yield. It ensures:

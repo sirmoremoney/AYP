@@ -37,6 +37,7 @@ contract StrategyOracle is IStrategyOracle {
     error OnlyOwner();
     error OnlyOwnerOrVault();
     error ZeroAddress();
+    error NotAContract();
     error YieldChangeTooLarge();
 
     // ============ Constructor ============
@@ -72,6 +73,7 @@ contract StrategyOracle is IStrategyOracle {
      */
     function setVault(address _vault) external onlyOwner {
         if (_vault == address(0)) revert ZeroAddress();
+        if (_vault.code.length == 0) revert NotAContract();
         vault = _vault;
         emit VaultSet(_vault);
     }
