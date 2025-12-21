@@ -248,6 +248,8 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
      * @param _treasury Treasury address for fees
      * @param _feeRate Initial fee rate (18 decimals)
      * @param _cooldownPeriod Initial cooldown period
+     * @param _shareName Name for the vault share token (e.g., "USDC Savings Vault Share")
+     * @param _shareSymbol Symbol for the vault share token (e.g., "svUSDC")
      */
     constructor(
         address _usdc,
@@ -256,7 +258,9 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
         address _multisig,
         address _treasury,
         uint256 _feeRate,
-        uint256 _cooldownPeriod
+        uint256 _cooldownPeriod,
+        string memory _shareName,
+        string memory _shareSymbol
     ) {
         if (_usdc == address(0)) revert ZeroAddress();
         if (_strategyOracle == address(0)) revert ZeroAddress();
@@ -269,7 +273,7 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
         usdc = IERC20(_usdc);
         strategyOracle = IStrategyOracle(_strategyOracle);
         roleManager = IRoleManager(_roleManager);
-        shares = new VaultShare(address(this));
+        shares = new VaultShare(address(this), _shareName, _shareSymbol);
 
         multisig = _multisig;
         treasury = _treasury;
@@ -788,6 +792,31 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
         if (recovered > 0) {
             shares.burn(address(this), recovered);
             emit OrphanedSharesRecovered(recovered);
+        }
+    }
+
+    /**
+     * @notice Purge processed withdrawal entries to reclaim storage (M-1)
+     * @param count Maximum number of entries to purge
+     * @return purged Number of entries purged
+     * @dev Clears storage for processed entries (shares=0) up to withdrawalQueueHead.
+     *      This reclaims storage slots and provides gas refunds.
+     *      Note: Array length doesn't shrink, but storage is cleared.
+     */
+    function purgeProcessedWithdrawals(uint256 count) external returns (uint256 purged) {
+        uint256 head = withdrawalQueueHead;
+        uint256 toPurge = count < head ? count : head;
+
+        for (uint256 i = head - toPurge; i < head && purged < count; i++) {
+            // Only purge if already processed (shares = 0) and not already purged
+            if (withdrawalQueue[i].requester != address(0)) {
+                delete withdrawalQueue[i];
+                purged++;
+            }
+        }
+
+        if (purged > 0) {
+            emit WithdrawalsPurged(purged);
         }
     }
 

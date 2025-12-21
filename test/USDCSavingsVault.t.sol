@@ -50,7 +50,9 @@ contract USDCSavingsVaultTest is Test {
             multisig,
             treasury,
             FEE_RATE,
-            COOLDOWN
+            COOLDOWN,
+            "USDC Savings Vault Share",
+            "svUSDC"
         );
         shares = vault.shares();
 
@@ -104,26 +106,31 @@ contract USDCSavingsVaultTest is Test {
 
     function test_constructor_reverts_zeroAddress() public {
         vm.expectRevert(USDCSavingsVault.ZeroAddress.selector);
-        new USDCSavingsVault(address(0), address(strategyOracle), address(roleManager), multisig, treasury, FEE_RATE, COOLDOWN);
+        new USDCSavingsVault(address(0), address(strategyOracle), address(roleManager), multisig, treasury, FEE_RATE, COOLDOWN, "Test", "TST");
 
         vm.expectRevert(USDCSavingsVault.ZeroAddress.selector);
-        new USDCSavingsVault(address(usdc), address(0), address(roleManager), multisig, treasury, FEE_RATE, COOLDOWN);
+        new USDCSavingsVault(address(usdc), address(0), address(roleManager), multisig, treasury, FEE_RATE, COOLDOWN, "Test", "TST");
 
         vm.expectRevert(USDCSavingsVault.ZeroAddress.selector);
-        new USDCSavingsVault(address(usdc), address(strategyOracle), address(0), multisig, treasury, FEE_RATE, COOLDOWN);
+        new USDCSavingsVault(address(usdc), address(strategyOracle), address(0), multisig, treasury, FEE_RATE, COOLDOWN, "Test", "TST");
     }
 
     function test_constructor_reverts_invalidFeeRate() public {
         vm.expectRevert(USDCSavingsVault.InvalidFeeRate.selector);
-        new USDCSavingsVault(address(usdc), address(strategyOracle), address(roleManager), multisig, treasury, 0.6e18, COOLDOWN);
+        new USDCSavingsVault(address(usdc), address(strategyOracle), address(roleManager), multisig, treasury, 0.6e18, COOLDOWN, "Test", "TST");
     }
 
     function test_constructor_reverts_invalidCooldown() public {
         vm.expectRevert(USDCSavingsVault.InvalidCooldown.selector);
-        new USDCSavingsVault(address(usdc), address(strategyOracle), address(roleManager), multisig, treasury, FEE_RATE, 0);
+        new USDCSavingsVault(address(usdc), address(strategyOracle), address(roleManager), multisig, treasury, FEE_RATE, 0, "Test", "TST");
 
         vm.expectRevert(USDCSavingsVault.InvalidCooldown.selector);
-        new USDCSavingsVault(address(usdc), address(strategyOracle), address(roleManager), multisig, treasury, FEE_RATE, 31 days);
+        new USDCSavingsVault(address(usdc), address(strategyOracle), address(roleManager), multisig, treasury, FEE_RATE, 31 days, "Test", "TST");
+    }
+
+    function test_constructor_shareNameSymbol() public view {
+        assertEq(shares.name(), "USDC Savings Vault Share");
+        assertEq(shares.symbol(), "svUSDC");
     }
 
     // ============ Deposit Tests ============

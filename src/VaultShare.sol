@@ -5,14 +5,15 @@ import {IERC20} from "./interfaces/IERC20.sol";
 
 /**
  * @title VaultShare
- * @notice ERC20 token representing shares in the USDC Savings Vault
- * @dev Only the vault can mint and burn shares
+ * @notice ERC20 token representing shares in a savings vault
+ * @dev Only the vault can mint and burn shares. Name/symbol are configurable
+ *      to support multiple vault types (USDC, ETH, etc.)
  */
 contract VaultShare is IERC20 {
     // ============ Storage ============
 
-    string public constant name = "USDC Savings Vault Share";
-    string public constant symbol = "svUSDC";
+    string public name;
+    string public symbol;
     uint8 public constant decimals = 18; // Standard ERC20 decimals
 
     uint256 public totalSupply;
@@ -27,6 +28,7 @@ contract VaultShare is IERC20 {
     error InsufficientBalance();
     error InsufficientAllowance();
     error ZeroAddress();
+    error EmptyString();
 
     // ============ Modifiers ============
 
@@ -37,9 +39,19 @@ contract VaultShare is IERC20 {
 
     // ============ Constructor ============
 
-    constructor(address _vault) {
+    /**
+     * @notice Initialize the vault share token
+     * @param _vault Address of the vault that can mint/burn
+     * @param _name Token name (e.g., "USDC Savings Vault Share")
+     * @param _symbol Token symbol (e.g., "svUSDC")
+     */
+    constructor(address _vault, string memory _name, string memory _symbol) {
         if (_vault == address(0)) revert ZeroAddress();
+        if (bytes(_name).length == 0) revert EmptyString();
+        if (bytes(_symbol).length == 0) revert EmptyString();
         vault = _vault;
+        name = _name;
+        symbol = _symbol;
     }
 
     // ============ External Functions ============
