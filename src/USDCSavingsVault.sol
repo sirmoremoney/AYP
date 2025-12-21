@@ -144,6 +144,12 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
     uint256 public constant CANCELLATION_WINDOW = 1 hours; // H-3: User can cancel within this window
     uint256 public constant MAX_PENDING_PER_USER = 10; // M-1: Limit pending requests per user
 
+    // Timelock durations for critical configuration changes
+    uint256 public constant TIMELOCK_FEE_RATE = 1 days;
+    uint256 public constant TIMELOCK_TREASURY = 2 days;
+    uint256 public constant TIMELOCK_MULTISIG = 3 days;
+    uint256 public constant TIMELOCK_COOLDOWN = 1 days;
+
     // Initial share price: 1 USDC (6 decimals) = 1 share (18 decimals)
     // Price is scaled to 18 decimals: 1e6 means 1 USDC per share
     uint256 public constant INITIAL_SHARE_PRICE = 1e6;
@@ -181,6 +187,16 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
     uint256 public pendingWithdrawalShares; // Total shares escrowed in queue
     mapping(address => uint256) public userPendingRequests; // M-1: Track pending requests per user
 
+    // Timelock pending changes (0 = no pending change)
+    uint256 public pendingFeeRate;
+    uint256 public pendingFeeRateTimestamp;
+    address public pendingTreasury;
+    uint256 public pendingTreasuryTimestamp;
+    address public pendingMultisig;
+    uint256 public pendingMultisigTimestamp;
+    uint256 public pendingCooldownPeriod;
+    uint256 public pendingCooldownTimestamp;
+
     // ============ Errors ============
 
     error OnlyOwner();
@@ -208,6 +224,9 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
     error EscrowBalanceMismatch();
     error SharesNotBurned();
     error FeeExceedsProfit();
+    // Timelock errors
+    error TimelockNotExpired();
+    error NoPendingChange();
 
     // ============ Modifiers ============
 
@@ -606,35 +625,112 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
 
     // ============ Owner Functions ============
 
+    // ============ Timelocked Configuration Functions ============
+
     /**
-     * @notice Update multisig address
+     * @notice Queue a multisig address change (3-day timelock)
      * @param newMultisig New multisig address
      */
-    function setMultisig(address newMultisig) external onlyOwner {
+    function queueMultisig(address newMultisig) external onlyOwner {
         if (newMultisig == address(0)) revert ZeroAddress();
-        emit MultisigUpdated(multisig, newMultisig);
-        multisig = newMultisig;
+        pendingMultisig = newMultisig;
+        pendingMultisigTimestamp = block.timestamp + TIMELOCK_MULTISIG;
+        emit MultisigChangeQueued(newMultisig, pendingMultisigTimestamp);
     }
 
     /**
-     * @notice Update treasury address
+     * @notice Execute a queued multisig change after timelock expires
+     */
+    function executeMultisig() external onlyOwner {
+        if (pendingMultisigTimestamp == 0) revert NoPendingChange();
+        if (block.timestamp < pendingMultisigTimestamp) revert TimelockNotExpired();
+        address oldMultisig = multisig;
+        multisig = pendingMultisig;
+        pendingMultisig = address(0);
+        pendingMultisigTimestamp = 0;
+        emit MultisigChangeExecuted(oldMultisig, multisig);
+    }
+
+    /**
+     * @notice Cancel a pending multisig change
+     */
+    function cancelMultisig() external onlyOwner {
+        if (pendingMultisigTimestamp == 0) revert NoPendingChange();
+        address cancelled = pendingMultisig;
+        pendingMultisig = address(0);
+        pendingMultisigTimestamp = 0;
+        emit MultisigChangeCancelled(cancelled);
+    }
+
+    /**
+     * @notice Queue a treasury address change (2-day timelock)
      * @param newTreasury New treasury address
      */
-    function setTreasury(address newTreasury) external onlyOwner {
+    function queueTreasury(address newTreasury) external onlyOwner {
         if (newTreasury == address(0)) revert ZeroAddress();
-        emit TreasuryUpdated(treasury, newTreasury);
-        treasury = newTreasury;
+        pendingTreasury = newTreasury;
+        pendingTreasuryTimestamp = block.timestamp + TIMELOCK_TREASURY;
+        emit TreasuryChangeQueued(newTreasury, pendingTreasuryTimestamp);
     }
 
     /**
-     * @notice Update fee rate
+     * @notice Execute a queued treasury change after timelock expires
+     */
+    function executeTreasury() external onlyOwner {
+        if (pendingTreasuryTimestamp == 0) revert NoPendingChange();
+        if (block.timestamp < pendingTreasuryTimestamp) revert TimelockNotExpired();
+        address oldTreasury = treasury;
+        treasury = pendingTreasury;
+        pendingTreasury = address(0);
+        pendingTreasuryTimestamp = 0;
+        emit TreasuryChangeExecuted(oldTreasury, treasury);
+    }
+
+    /**
+     * @notice Cancel a pending treasury change
+     */
+    function cancelTreasury() external onlyOwner {
+        if (pendingTreasuryTimestamp == 0) revert NoPendingChange();
+        address cancelled = pendingTreasury;
+        pendingTreasury = address(0);
+        pendingTreasuryTimestamp = 0;
+        emit TreasuryChangeCancelled(cancelled);
+    }
+
+    /**
+     * @notice Queue a fee rate change (1-day timelock)
      * @param newFeeRate New fee rate (18 decimals)
      * @dev Invariant I.4: Fee rate capped at MAX_FEE_RATE
      */
-    function setFeeRate(uint256 newFeeRate) external onlyOwner {
+    function queueFeeRate(uint256 newFeeRate) external onlyOwner {
         if (newFeeRate > MAX_FEE_RATE) revert InvalidFeeRate();
-        emit FeeRateUpdated(feeRate, newFeeRate);
-        feeRate = newFeeRate;
+        pendingFeeRate = newFeeRate;
+        pendingFeeRateTimestamp = block.timestamp + TIMELOCK_FEE_RATE;
+        emit FeeRateChangeQueued(newFeeRate, pendingFeeRateTimestamp);
+    }
+
+    /**
+     * @notice Execute a queued fee rate change after timelock expires
+     */
+    function executeFeeRate() external onlyOwner {
+        if (pendingFeeRateTimestamp == 0) revert NoPendingChange();
+        if (block.timestamp < pendingFeeRateTimestamp) revert TimelockNotExpired();
+        uint256 oldFeeRate = feeRate;
+        feeRate = pendingFeeRate;
+        pendingFeeRate = 0;
+        pendingFeeRateTimestamp = 0;
+        emit FeeRateChangeExecuted(oldFeeRate, feeRate);
+    }
+
+    /**
+     * @notice Cancel a pending fee rate change
+     */
+    function cancelFeeRate() external onlyOwner {
+        if (pendingFeeRateTimestamp == 0) revert NoPendingChange();
+        uint256 cancelled = pendingFeeRate;
+        pendingFeeRate = 0;
+        pendingFeeRateTimestamp = 0;
+        emit FeeRateChangeCancelled(cancelled);
     }
 
     /**
@@ -665,16 +761,40 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
     }
 
     /**
-     * @notice Update cooldown period
+     * @notice Queue a cooldown period change (1-day timelock)
      * @param newCooldown New cooldown in seconds
      * @dev IMPORTANT: This change affects ALL pending withdrawals, including existing ones.
      *      Increasing the cooldown will delay fulfillment of requests already in the queue.
-     *      This is expected governance behavior - use with caution during active operations.
      */
-    function setCooldownPeriod(uint256 newCooldown) external onlyOwner {
+    function queueCooldown(uint256 newCooldown) external onlyOwner {
         if (newCooldown < MIN_COOLDOWN || newCooldown > MAX_COOLDOWN) revert InvalidCooldown();
-        emit CooldownPeriodUpdated(cooldownPeriod, newCooldown);
-        cooldownPeriod = newCooldown;
+        pendingCooldownPeriod = newCooldown;
+        pendingCooldownTimestamp = block.timestamp + TIMELOCK_COOLDOWN;
+        emit CooldownChangeQueued(newCooldown, pendingCooldownTimestamp);
+    }
+
+    /**
+     * @notice Execute a queued cooldown change after timelock expires
+     */
+    function executeCooldown() external onlyOwner {
+        if (pendingCooldownTimestamp == 0) revert NoPendingChange();
+        if (block.timestamp < pendingCooldownTimestamp) revert TimelockNotExpired();
+        uint256 oldCooldown = cooldownPeriod;
+        cooldownPeriod = pendingCooldownPeriod;
+        pendingCooldownPeriod = 0;
+        pendingCooldownTimestamp = 0;
+        emit CooldownChangeExecuted(oldCooldown, cooldownPeriod);
+    }
+
+    /**
+     * @notice Cancel a pending cooldown change
+     */
+    function cancelCooldown() external onlyOwner {
+        if (pendingCooldownTimestamp == 0) revert NoPendingChange();
+        uint256 cancelled = pendingCooldownPeriod;
+        pendingCooldownPeriod = 0;
+        pendingCooldownTimestamp = 0;
+        emit CooldownChangeCancelled(cancelled);
     }
 
     /**

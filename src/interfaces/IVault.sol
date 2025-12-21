@@ -36,6 +36,20 @@ interface IVault {
     event OrphanedSharesRecovered(uint256 amount);
     event WithdrawalsPurged(uint256 count);
 
+    // Timelock events
+    event FeeRateChangeQueued(uint256 newRate, uint256 executionTime);
+    event FeeRateChangeExecuted(uint256 oldRate, uint256 newRate);
+    event FeeRateChangeCancelled(uint256 cancelledRate);
+    event TreasuryChangeQueued(address newTreasury, uint256 executionTime);
+    event TreasuryChangeExecuted(address oldTreasury, address newTreasury);
+    event TreasuryChangeCancelled(address cancelledTreasury);
+    event MultisigChangeQueued(address newMultisig, uint256 executionTime);
+    event MultisigChangeExecuted(address oldMultisig, address newMultisig);
+    event MultisigChangeCancelled(address cancelledMultisig);
+    event CooldownChangeQueued(uint256 newCooldown, uint256 executionTime);
+    event CooldownChangeExecuted(uint256 oldCooldown, uint256 newCooldown);
+    event CooldownChangeCancelled(uint256 cancelledCooldown);
+
     // ============ View Functions ============
 
     /**
@@ -106,22 +120,52 @@ interface IVault {
     // ============ Owner Functions ============
 
     /**
-     * @notice Update multisig address
+     * @notice Queue a multisig address change (3-day timelock)
      * @param newMultisig New multisig address
      */
-    function setMultisig(address newMultisig) external;
+    function queueMultisig(address newMultisig) external;
 
     /**
-     * @notice Update treasury address
+     * @notice Execute a queued multisig change after timelock expires
+     */
+    function executeMultisig() external;
+
+    /**
+     * @notice Cancel a pending multisig change
+     */
+    function cancelMultisig() external;
+
+    /**
+     * @notice Queue a treasury address change (2-day timelock)
      * @param newTreasury New treasury address
      */
-    function setTreasury(address newTreasury) external;
+    function queueTreasury(address newTreasury) external;
 
     /**
-     * @notice Update fee rate
+     * @notice Execute a queued treasury change after timelock expires
+     */
+    function executeTreasury() external;
+
+    /**
+     * @notice Cancel a pending treasury change
+     */
+    function cancelTreasury() external;
+
+    /**
+     * @notice Queue a fee rate change (1-day timelock)
      * @param newFeeRate New fee rate (18 decimals)
      */
-    function setFeeRate(uint256 newFeeRate) external;
+    function queueFeeRate(uint256 newFeeRate) external;
+
+    /**
+     * @notice Execute a queued fee rate change after timelock expires
+     */
+    function executeFeeRate() external;
+
+    /**
+     * @notice Cancel a pending fee rate change
+     */
+    function cancelFeeRate() external;
 
     /**
      * @notice Update per-user deposit cap
@@ -142,10 +186,20 @@ interface IVault {
     function setWithdrawalBuffer(uint256 newBuffer) external;
 
     /**
-     * @notice Update cooldown period
+     * @notice Queue a cooldown period change (1-day timelock)
      * @param newCooldown New cooldown in seconds
      */
-    function setCooldownPeriod(uint256 newCooldown) external;
+    function queueCooldown(uint256 newCooldown) external;
+
+    /**
+     * @notice Execute a queued cooldown change after timelock expires
+     */
+    function executeCooldown() external;
+
+    /**
+     * @notice Cancel a pending cooldown change
+     */
+    function cancelCooldown() external;
 
     /**
      * @notice Force fulfill a specific withdrawal (emergency)
