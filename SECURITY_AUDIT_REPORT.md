@@ -89,18 +89,18 @@ uint256 feeShares = (fee * totalShareSupply) / (currentNav - fee);
 
 ### 4. Reentrancy Attacks [NOT VULNERABLE]
 
-**Analysis:** All state-changing functions protected with `nonReentrant` modifier.
+**Analysis:** All state-changing functions protected with OpenZeppelin's `ReentrancyGuard`.
 
 **External call points:**
 1. `usdc.transferFrom` / `usdc.transfer` - Standard ERC20, no callback
-2. `shares.mint/burn/transfer` - VaultShare controlled by vault, trusted
+2. `shares.mint/burn/transfer` - VaultShare (OpenZeppelin ERC20) controlled by vault, trusted
 3. `strategyOracle.accumulatedYield()` - View function only
 
 **Cross-contract reentrancy:**
-- State updates happen BEFORE external calls in critical functions
-- Even with ERC777-like callbacks, `nonReentrant` blocks re-entry
+- State updates happen BEFORE external calls in critical functions (CEI pattern)
+- Even with ERC777-like callbacks, OpenZeppelin `nonReentrant` blocks re-entry
 
-**Verdict:** SECURE - Proper reentrancy guards implemented.
+**Verdict:** SECURE - OpenZeppelin ReentrancyGuard + CEI pattern implemented.
 
 ---
 
@@ -128,15 +128,16 @@ uint256 feeShares = (fee * totalShareSupply) / (currentNav - fee);
 
 ### 6. Share Escrow Bypass [NOT VULNERABLE]
 
-**Analysis:** VaultShare has a special rule:
+**Analysis:** VaultShare (built on OpenZeppelin ERC20) has a special override:
 
 ```solidity
-// VaultShare.sol:89-100
-function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-    if (msg.sender != vault) {
-        // ... allowance check
+// VaultShare.sol - inherits from OpenZeppelin ERC20
+function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
+    if (msg.sender == vault) {
+        _transfer(from, to, amount);  // Vault bypasses allowance
+        return true;
     }
-    return _transfer(from, to, amount);
+    return super.transferFrom(from, to, amount);  // Standard OZ behavior
 }
 ```
 
@@ -145,7 +146,7 @@ function transferFrom(address from, address to, uint256 amount) external returns
 **Why it's safe:**
 - Vault only calls `transferFrom(msg.sender, address(this), amount)` in `requestWithdrawal`
 - `from` is always the caller - cannot be spoofed
-- Balance is checked before transfer
+- Balance is checked by OpenZeppelin's `_transfer` before transfer
 
 **Verdict:** SECURE - Vault's special privilege is properly scoped.
 

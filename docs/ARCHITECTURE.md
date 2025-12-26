@@ -63,14 +63,15 @@ The main contract handling all user-facing operations and core logic.
 
 ### VaultShare
 
-A minimal ERC-20 token representing vault ownership.
+An ERC-20 token representing vault ownership, built on OpenZeppelin's ERC20.
 
 **Responsibilities:**
-- Standard ERC-20 functionality (transfer, approve, etc.)
+- Standard ERC-20 functionality via OpenZeppelin (transfer, approve, etc.)
 - Vault-only minting and burning
 - Special transferFrom bypass for vault escrow operations
 
 **Key Design Decisions:**
+- Inherits from OpenZeppelin ERC20 for battle-tested token mechanics
 - Only the vault can mint/burn shares
 - Vault can transferFrom without approval (required for escrow mechanism)
 - 18 decimal precision matching USDC calculations
@@ -181,7 +182,7 @@ User                    Vault                   VaultShare          Operator
 | NAV manipulation | Owner-only oracle updates, HWM |
 | Fee extraction | Fees only on profit (I.4) |
 | Queue starvation | Graceful degradation (I.5) |
-| Reentrancy | State-before-effects pattern |
+| Reentrancy | OpenZeppelin ReentrancyGuard + CEI pattern |
 
 ## Upgrade Path
 
@@ -190,6 +191,24 @@ The architecture supports future upgrades:
 1. **NavOracle**: Can be replaced with Chainlink, TWAP, or multi-source oracle
 2. **RoleManager**: Can add timelock, DAO governance, or multi-sig requirements
 3. **Vault**: Immutable core; new versions would require migration
+
+## OpenZeppelin Usage
+
+The protocol deliberately uses OpenZeppelin only for **mechanical safety guarantees**:
+
+| Component | OZ Module | Rationale |
+|-----------|-----------|-----------|
+| VaultShare | ERC20 | Battle-tested token mechanics |
+| USDCSavingsVault | ReentrancyGuard | Cross-function reentrancy protection |
+| USDCSavingsVault | IERC20 | Standard interface for USDC interaction |
+
+**Not using OpenZeppelin Ownable/Pausable** - Authority is delegated to external RoleManager to:
+- Support multi-role governance (Owner, Operator)
+- Enable governance upgrades without redeploying the Vault
+- Provide three-state pause (global, deposits, withdrawals)
+- Allow asymmetric pause/unpause (operators pause, only owner unpause)
+
+This separation ensures the Vault focuses on asset custody while governance remains modular.
 
 ## Gas Optimization
 
