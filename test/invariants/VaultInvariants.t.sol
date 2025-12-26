@@ -62,7 +62,9 @@ contract VaultInvariantTest is Test {
             multisig,
             treasury,
             FEE_RATE,
-            COOLDOWN
+            COOLDOWN,
+            "USDC Savings Vault Share",
+            "svUSDC"
         );
 
         shares = vault.shares();
@@ -128,18 +130,19 @@ contract VaultInvariantTest is Test {
      * Share price is consistent for all calculations
      */
     function invariant_uniformSharePrice() public view {
-        uint256 price = vault.sharePrice();
+        // Skip this check if no shares exist (empty vault)
+        if (shares.totalSupply() == 0) return;
 
-        // Converting 1000 shares to USDC and back should give ~1000 shares
-        uint256 testShares = 1000e6;
+        // Converting 1000 shares (18 decimals) to USDC and back should give ~1000 shares
+        uint256 testShares = 1000e18;
         uint256 usdcValue = vault.sharesToUsdc(testShares);
         uint256 backToShares = vault.usdcToShares(usdcValue);
 
-        // Allow 1 share rounding error
+        // Allow small rounding error (1 share = 1e18)
         assertApproxEqAbs(
             backToShares,
             testShares,
-            1,
+            1e12, // Allow rounding error due to price precision
             "I.3 VIOLATED: Share price not uniform"
         );
     }
