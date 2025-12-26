@@ -57,7 +57,9 @@ contract DeployScript {
             multisig,
             treasury,
             feeRate,
-            cooldownPeriod
+            cooldownPeriod,
+            "USDC Savings Vault Share",
+            "svUSDC"
         );
 
         vm.stopBroadcast();

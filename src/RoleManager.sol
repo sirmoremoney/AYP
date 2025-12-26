@@ -8,9 +8,45 @@ import {IRoleManager} from "./interfaces/IRoleManager.sol";
  * @notice Centralized role management and pause control for the vault ecosystem
  * @dev Manages Owner, Operator roles and pause states
  *
- * Role hierarchy:
- * - Owner: Full governance control, can unpause, set operators, transfer ownership
- * - Operator: Day-to-day operations, can pause (not unpause), fulfill withdrawals
+ * =============================================================================
+ * ARCHITECTURAL RATIONALE
+ * =============================================================================
+ *
+ * The vault ecosystem uses an external RoleManager rather than inheriting
+ * OpenZeppelin's Ownable or Pausable directly. This deliberate design choice:
+ *
+ *   1. MULTI-ROLE GOVERNANCE: Supports Owner, Operator, and Guardian roles
+ *      with distinct permissions. OpenZeppelin Ownable only supports one admin.
+ *
+ *   2. GOVERNANCE UPGRADEABILITY: Governance logic can be upgraded without
+ *      redeploying the Vault. The Vault holds assets; separating governance
+ *      reduces upgrade risk to user funds.
+ *
+ *   3. SEPARATION OF CONCERNS: The Vault focuses purely on asset custody and
+ *      accounting. Authority assumptions are not hard-coded into the custody layer.
+ *
+ *   4. THREE-STATE PAUSE: Supports paused, depositsPaused, and withdrawalsPaused
+ *      independently. OpenZeppelin Pausable only provides a single pause state.
+ *
+ *   5. ASYMMETRIC PAUSE/UNPAUSE: Operators can pause (fast emergency response),
+ *      but only Owner can unpause (prevents operator abuse). This pattern is
+ *      not directly supported by OpenZeppelin Pausable.
+ *
+ * =============================================================================
+ * ROLE HIERARCHY
+ * =============================================================================
+ *
+ * Owner (Governance):
+ *   - Full control: can unpause, set operators, transfer ownership
+ *   - Implicit operator privileges
+ *   - Two-step ownership transfer for safety
+ *
+ * Operator (Day-to-Day):
+ *   - Can pause (not unpause) for emergency response
+ *   - Can fulfill withdrawals
+ *   - Cannot change governance settings
+ *
+ * =============================================================================
  */
 contract RoleManager is IRoleManager {
     // ============ Storage ============

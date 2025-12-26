@@ -1,34 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IERC20} from "./interfaces/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IVault} from "./interfaces/IVault.sol";
 import {IStrategyOracle} from "./interfaces/IStrategyOracle.sol";
 import {IRoleManager} from "./interfaces/IRoleManager.sol";
 import {VaultShare} from "./VaultShare.sol";
-
-/**
- * @title ReentrancyGuard
- * @notice Minimal reentrancy protection (follows OpenZeppelin pattern)
- */
-abstract contract ReentrancyGuard {
-    error ReentrantCall();
-
-    uint256 private constant _NOT_ENTERED = 1;
-    uint256 private constant _ENTERED = 2;
-    uint256 private _status;
-
-    constructor() {
-        _status = _NOT_ENTERED;
-    }
-
-    modifier nonReentrant() {
-        if (_status == _ENTERED) revert ReentrantCall();
-        _status = _ENTERED;
-        _;
-        _status = _NOT_ENTERED;
-    }
-}
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title USDCSavingsVault
@@ -126,6 +104,24 @@ abstract contract ReentrancyGuard {
  * shares=0 and skipped via withdrawalQueueHead cursor. Entries are never
  * deleted. This is intentional to preserve FIFO ordering, maintain requestId
  * stability, and avoid costly array shifts.
+ *
+ * STATEMENT D.5 — Governance Delegation Pattern
+ * ----------------------------------------------------------------------------
+ * This Vault deliberately does NOT use OpenZeppelin's Ownable or Pausable.
+ * Authority and emergency control are delegated to an external RoleManager
+ * contract to:
+ *
+ *   1. Allow multi-role governance (Owner, Operator, Guardian)
+ *   2. Enable future governance upgrades without redeploying the Vault
+ *   3. Avoid hard-coding authority assumptions into the asset custody layer
+ *
+ * OpenZeppelin components are used ONLY where they provide pure mechanical
+ * safety guarantees and do not encode governance semantics:
+ *   - ReentrancyGuard: Prevents cross-function reentrancy (mechanical safety)
+ *   - ERC20 (VaultShare): Standard token mechanics (no governance assumptions)
+ *
+ * This separation ensures the Vault focuses solely on asset custody and
+ * accounting, while governance logic remains modular and upgradeable.
  *
  * =============================================================================
  * SINGLE-LINE SUMMARY

@@ -1,43 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IERC20} from "./interfaces/IERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /**
  * @title VaultShare
  * @notice ERC20 token representing shares in a savings vault
  * @dev Only the vault can mint and burn shares. Name/symbol are configurable
  *      to support multiple vault types (USDC, ETH, etc.)
+ *
+ * OpenZeppelin Usage:
+ * This contract inherits from OpenZeppelin's ERC20 because it provides pure
+ * mechanical safety (standard token transfers, balances, approvals) without
+ * encoding governance semantics. Access control (mint/burn) is handled by the
+ * onlyVault modifier, keeping authority assumptions in the Vault layer.
  */
-contract VaultShare is IERC20 {
-    // ============ Storage ============
-
-    string public name;
-    string public symbol;
-    uint8 public constant decimals = 18; // Standard ERC20 decimals
-
-    uint256 public totalSupply;
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
-
+contract VaultShare is ERC20 {
     address public immutable vault;
 
-    // ============ Errors ============
-
     error OnlyVault();
-    error InsufficientBalance();
-    error InsufficientAllowance();
-    error ZeroAddress();
-    error EmptyString();
-
-    // ============ Modifiers ============
 
     modifier onlyVault() {
         if (msg.sender != vault) revert OnlyVault();
         _;
     }
-
-    // ============ Constructor ============
 
     /**
      * @notice Initialize the vault share token
@@ -45,37 +31,31 @@ contract VaultShare is IERC20 {
      * @param _name Token name (e.g., "USDC Savings Vault Share")
      * @param _symbol Token symbol (e.g., "svUSDC")
      */
-    constructor(address _vault, string memory _name, string memory _symbol) {
-        if (_vault == address(0)) revert ZeroAddress();
-        if (bytes(_name).length == 0) revert EmptyString();
-        if (bytes(_symbol).length == 0) revert EmptyString();
+    constructor(
+        address _vault,
+        string memory _name,
+        string memory _symbol
+    ) ERC20(_name, _symbol) {
+        if (_vault == address(0)) revert OnlyVault();
         vault = _vault;
-        name = _name;
-        symbol = _symbol;
-    }
-
-    // ============ External Functions ============
-
-    /**
-     * @notice Transfer tokens to a recipient
-     * @param to Recipient address
-     * @param amount Amount to transfer
-     * @return success True if transfer succeeded
-     */
-    function transfer(address to, uint256 amount) external returns (bool) {
-        return _transfer(msg.sender, to, amount);
     }
 
     /**
-     * @notice Approve spender to transfer tokens on behalf of the caller
-     * @param spender Address to approve
-     * @param amount Amount to approve
-     * @return success True if approval succeeded
+     * @notice Mint new shares to an address (only callable by vault)
+     * @param to Address to mint to
+     * @param amount Amount to mint
      */
-    function approve(address spender, uint256 amount) external returns (bool) {
-        allowance[msg.sender][spender] = amount;
-        emit Approval(msg.sender, spender, amount);
-        return true;
+    function mint(address to, uint256 amount) external onlyVault {
+        _mint(to, amount);
+    }
+
+    /**
+     * @notice Burn shares from an address (only callable by vault)
+     * @param from Address to burn from
+     * @param amount Amount to burn
+     */
+    function burn(address from, uint256 amount) external onlyVault {
+        _burn(from, amount);
     }
 
     /**
@@ -86,56 +66,12 @@ contract VaultShare is IERC20 {
      * @return success True if transfer succeeded
      * @dev Vault can transfer without allowance (for escrow operations)
      */
-    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+    function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
         // Vault can transfer without allowance (trusted for escrow)
-        if (msg.sender != vault) {
-            uint256 currentAllowance = allowance[from][msg.sender];
-            if (currentAllowance != type(uint256).max) {
-                if (currentAllowance < amount) revert InsufficientAllowance();
-                unchecked {
-                    allowance[from][msg.sender] = currentAllowance - amount;
-                }
-            }
+        if (msg.sender == vault) {
+            _transfer(from, to, amount);
+            return true;
         }
-        return _transfer(from, to, amount);
-    }
-
-    /**
-     * @notice Mint new shares to an address (only callable by vault)
-     * @param to Address to mint to
-     * @param amount Amount to mint
-     */
-    function mint(address to, uint256 amount) external onlyVault {
-        if (to == address(0)) revert ZeroAddress();
-        totalSupply += amount;
-        balanceOf[to] += amount;
-        emit Transfer(address(0), to, amount);
-    }
-
-    /**
-     * @notice Burn shares from an address (only callable by vault)
-     * @param from Address to burn from
-     * @param amount Amount to burn
-     */
-    function burn(address from, uint256 amount) external onlyVault {
-        if (balanceOf[from] < amount) revert InsufficientBalance();
-        unchecked {
-            balanceOf[from] -= amount;
-        }
-        totalSupply -= amount;
-        emit Transfer(from, address(0), amount);
-    }
-
-    // ============ Internal Functions ============
-
-    function _transfer(address from, address to, uint256 amount) internal returns (bool) {
-        if (to == address(0)) revert ZeroAddress();
-        if (balanceOf[from] < amount) revert InsufficientBalance();
-        unchecked {
-            balanceOf[from] -= amount;
-        }
-        balanceOf[to] += amount;
-        emit Transfer(from, to, amount);
-        return true;
+        return super.transferFrom(from, to, amount);
     }
 }
