@@ -9,44 +9,95 @@ pragma solidity ^0.8.24;
 interface IVault {
     // ============ Structs ============
 
+    /// @notice Represents a pending withdrawal request in the queue
+    /// @dev Stored in append-only array; processed entries have shares=0
     struct WithdrawalRequest {
+        /// @notice Address that requested the withdrawal
         address requester;
+        /// @notice Number of shares to be burned upon fulfillment
         uint256 shares;
+        /// @notice Block timestamp when request was created (for cooldown)
         uint256 requestTimestamp;
     }
 
     // ============ Events ============
 
+    /// @notice Emitted when a user deposits USDC and receives shares
+    /// @param user Address of the depositor
+    /// @param usdcAmount Amount of USDC deposited (6 decimals)
+    /// @param sharesMinted Number of shares minted to user (18 decimals)
     event Deposit(address indexed user, uint256 usdcAmount, uint256 sharesMinted);
+    /// @notice Emitted when a user requests a withdrawal
+    /// @param user Address requesting withdrawal
+    /// @param shares Number of shares escrowed for withdrawal
+    /// @param requestId Index in the withdrawal queue
     event WithdrawalRequested(address indexed user, uint256 shares, uint256 requestId);
+    /// @notice Emitted when a withdrawal is fulfilled
+    /// @param user Address receiving USDC
+    /// @param shares Number of shares burned
+    /// @param usdcAmount Amount of USDC paid out
+    /// @param requestId Index in the withdrawal queue
     event WithdrawalFulfilled(address indexed user, uint256 shares, uint256 usdcAmount, uint256 requestId);
+    /// @notice Emitted when a withdrawal request is cancelled
+    /// @param user Address whose withdrawal was cancelled
+    /// @param shares Number of shares returned from escrow
+    /// @param requestId Index in the withdrawal queue
     event WithdrawalCancelled(address indexed user, uint256 shares, uint256 requestId);
+    /// @notice Emitted when protocol fees are collected
+    /// @param feeShares Number of shares minted as fee
+    /// @param treasury Address receiving the fee shares
     event FeeCollected(uint256 feeShares, address indexed treasury);
+    /// @notice Emitted when excess USDC is forwarded to multisig
+    /// @param amount Amount of USDC transferred
     event FundsForwardedToMultisig(uint256 amount);
+    /// @notice Emitted when multisig returns USDC for withdrawals
+    /// @param amount Amount of USDC received
     event FundsReceivedFromMultisig(uint256 amount);
+    /// @notice Emitted when multisig address is updated
     event MultisigUpdated(address indexed oldMultisig, address indexed newMultisig);
+    /// @notice Emitted when treasury address is updated
     event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
+    /// @notice Emitted when fee rate is updated
     event FeeRateUpdated(uint256 oldRate, uint256 newRate);
+    /// @notice Emitted when per-user cap is updated
     event PerUserCapUpdated(uint256 oldCap, uint256 newCap);
+    /// @notice Emitted when global cap is updated
     event GlobalCapUpdated(uint256 oldCap, uint256 newCap);
+    /// @notice Emitted when withdrawal buffer is updated
     event WithdrawalBufferUpdated(uint256 oldBuffer, uint256 newBuffer);
+    /// @notice Emitted when cooldown period is updated
     event CooldownPeriodUpdated(uint256 oldPeriod, uint256 newPeriod);
+    /// @notice Emitted when a withdrawal is force-processed (emergency)
     event WithdrawalForced(address indexed user, uint256 shares, uint256 usdcAmount, uint256 requestId);
+    /// @notice Emitted when orphaned shares are recovered from vault
     event OrphanedSharesRecovered(uint256 amount);
+    /// @notice Emitted when processed withdrawal entries are purged
     event WithdrawalsPurged(uint256 count);
 
     // Timelock events
+    /// @notice Emitted when a fee rate change is queued
     event FeeRateChangeQueued(uint256 newRate, uint256 executionTime);
+    /// @notice Emitted when a queued fee rate change is executed
     event FeeRateChangeExecuted(uint256 oldRate, uint256 newRate);
+    /// @notice Emitted when a queued fee rate change is cancelled
     event FeeRateChangeCancelled(uint256 cancelledRate);
+    /// @notice Emitted when a treasury change is queued
     event TreasuryChangeQueued(address newTreasury, uint256 executionTime);
+    /// @notice Emitted when a queued treasury change is executed
     event TreasuryChangeExecuted(address oldTreasury, address newTreasury);
+    /// @notice Emitted when a queued treasury change is cancelled
     event TreasuryChangeCancelled(address cancelledTreasury);
+    /// @notice Emitted when a multisig change is queued
     event MultisigChangeQueued(address newMultisig, uint256 executionTime);
+    /// @notice Emitted when a queued multisig change is executed
     event MultisigChangeExecuted(address oldMultisig, address newMultisig);
+    /// @notice Emitted when a queued multisig change is cancelled
     event MultisigChangeCancelled(address cancelledMultisig);
+    /// @notice Emitted when a cooldown change is queued
     event CooldownChangeQueued(uint256 newCooldown, uint256 executionTime);
+    /// @notice Emitted when a queued cooldown change is executed
     event CooldownChangeExecuted(uint256 oldCooldown, uint256 newCooldown);
+    /// @notice Emitted when a queued cooldown change is cancelled
     event CooldownChangeCancelled(uint256 cancelledCooldown);
 
     // ============ View Functions ============

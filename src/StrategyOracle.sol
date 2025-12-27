@@ -27,28 +27,43 @@ interface IVaultMinimal {
 contract StrategyOracle is IStrategyOracle {
     // ============ Storage ============
 
+    /// @notice RoleManager contract for access control
     IRoleManager public immutable roleManager;
 
+    /// @notice Cumulative yield from external strategies (can be negative for losses)
+    /// @dev Used in vault's NAV calculation: totalAssets = deposits - withdrawals + accumulatedYield
     int256 public accumulatedYield;
+    /// @notice Timestamp of the last yield report
+    /// @dev Used to enforce MIN_REPORT_INTERVAL between reports
     uint256 public lastReportTime;
+    /// @notice The vault contract authorized to report yield
+    /// @dev Set via setVault(); only one vault can be authorized at a time
     address public vault;
 
-    // H-1: Percentage-based yield bounds to prevent accidental misreporting
-    // Default 1% (0.01e18). Set to 0 to disable bounds checking.
-    // Yield delta cannot exceed this percentage of the vault's current NAV.
-    // Can be adjusted post-deployment via setMaxYieldChangePercent() (owner-only).
+    /// @notice Maximum allowed yield change as percentage of NAV (18 decimals)
+    /// @dev H-1 fix: Prevents accidental misreporting (e.g., wrong decimals).
+    ///      Default 1% (0.01e18). Set to 0 to disable bounds checking.
+    ///      Example: 0.01e18 = 1%, so on 1M NAV, max yield report is ±10k
     uint256 public maxYieldChangePercent = 0.01e18;
 
-    // C-1 Fix: Minimum interval between yield reports to prevent compounding bypass
+    /// @notice Minimum time between yield reports (prevents compounding bypass)
+    /// @dev C-1 fix: Without this, attacker could report yield multiple times
+    ///      in same block to bypass per-report bounds
     uint256 public constant MIN_REPORT_INTERVAL = 1 days;
 
     // ============ Errors ============
 
+    /// @notice Thrown when non-owner calls an owner-only function
     error OnlyOwner();
+    /// @notice Thrown when caller is neither owner nor authorized vault
     error OnlyOwnerOrVault();
+    /// @notice Thrown when zero address provided where not allowed
     error ZeroAddress();
+    /// @notice Thrown when provided address is not a contract
     error NotAContract();
+    /// @notice Thrown when yield delta exceeds maxYieldChangePercent of NAV
     error YieldChangeTooLarge();
+    /// @notice Thrown when yield reported before MIN_REPORT_INTERVAL elapsed
     error ReportTooSoon();
 
     // ============ Constructor ============
@@ -64,11 +79,14 @@ contract StrategyOracle is IStrategyOracle {
 
     // ============ Modifiers ============
 
+    /// @notice Restricts access to the RoleManager's current owner
     modifier onlyOwner() {
         if (msg.sender != roleManager.owner()) revert OnlyOwner();
         _;
     }
 
+    /// @notice Restricts access to owner OR the authorized vault contract
+    /// @dev Vault access allows reportYieldAndCollectFees() to atomically report yield
     modifier onlyOwnerOrVault() {
         if (msg.sender != roleManager.owner() && msg.sender != vault) revert OnlyOwnerOrVault();
         _;
