@@ -17,8 +17,17 @@ pragma solidity ^0.8.24;
 interface IStrategyOracle {
     // ============ Events ============
 
+    /// @notice Emitted when yield is reported
+    /// @param yieldDelta Change in yield (positive or negative)
+    /// @param newAccumulatedYield Updated cumulative yield
+    /// @param timestamp Block timestamp of the report
     event YieldReported(int256 yieldDelta, int256 newAccumulatedYield, uint256 timestamp);
+    /// @notice Emitted when the authorized vault is set
+    /// @param vault Address of the vault
     event VaultSet(address indexed vault);
+    /// @notice Emitted when max yield change percentage is updated
+    /// @param oldValue Previous max percentage
+    /// @param newValue New max percentage
     event MaxYieldChangeUpdated(uint256 oldValue, uint256 newValue);
 
     // ============ View Functions ============
@@ -44,7 +53,7 @@ interface IStrategyOracle {
 
     /**
      * @notice Get the maximum yield change percentage
-     * @return Max yield change as percentage of NAV (18 decimals, default 0.1e18 = 10%)
+     * @return Max yield change as percentage of NAV (18 decimals, default 0.01e18 = 1%)
      */
     function maxYieldChangePercent() external view returns (uint256);
 

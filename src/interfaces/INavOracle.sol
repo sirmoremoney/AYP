@@ -9,7 +9,13 @@ pragma solidity ^0.8.24;
 interface INavOracle {
     // ============ Events ============
 
+    /// @notice Emitted when total assets value is reported
+    /// @param oldAssets Previous total assets value
+    /// @param newAssets New total assets value
+    /// @param timestamp Block timestamp of the report
     event TotalAssetsReported(uint256 oldAssets, uint256 newAssets, uint256 timestamp);
+    /// @notice Emitted when high water mark is updated
+    /// @param newHighWaterMark New high water mark value
     event HighWaterMarkUpdated(uint256 newHighWaterMark);
 
     // ============ View Functions ============

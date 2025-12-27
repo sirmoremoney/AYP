@@ -175,20 +175,36 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
     uint256 public totalDeposited; // Cumulative USDC deposited
     uint256 public totalWithdrawn; // Cumulative USDC withdrawn
 
-    // Withdrawal queue
+    // Withdrawal queue (append-only design - see STATEMENT D.4)
+    /// @notice Array of all withdrawal requests (processed entries have shares=0)
     WithdrawalRequest[] public withdrawalQueue;
-    uint256 public withdrawalQueueHead; // Index of next request to process
-    uint256 public pendingWithdrawalShares; // Total shares escrowed in queue
-    mapping(address => uint256) public userPendingRequests; // M-1: Track pending requests per user
+    /// @notice Cursor pointing to next unprocessed request (FIFO ordering)
+    uint256 public withdrawalQueueHead;
+    /// @notice Total shares currently held in escrow for pending withdrawals
+    /// @dev Must always equal shares.balanceOf(address(this)) minus any orphaned shares
+    uint256 public pendingWithdrawalShares;
+    /// @notice Count of pending withdrawal requests per user (prevents queue spam)
+    /// @dev Enforces MAX_PENDING_PER_USER limit per address
+    mapping(address => uint256) public userPendingRequests;
 
-    // Timelock pending changes (0 = no pending change)
+    // Timelock pending changes
+    // Each config change requires: queue -> wait timelock -> execute
+    // Value of 0 means no pending change; timestamp of 0 means not queued
+    /// @notice Pending fee rate value awaiting timelock expiry
     uint256 public pendingFeeRate;
+    /// @notice Timestamp when pendingFeeRate can be executed (0 = not queued)
     uint256 public pendingFeeRateTimestamp;
+    /// @notice Pending treasury address awaiting timelock expiry
     address public pendingTreasury;
+    /// @notice Timestamp when pendingTreasury can be executed (0 = not queued)
     uint256 public pendingTreasuryTimestamp;
+    /// @notice Pending multisig address awaiting timelock expiry
     address public pendingMultisig;
+    /// @notice Timestamp when pendingMultisig can be executed (0 = not queued)
     uint256 public pendingMultisigTimestamp;
+    /// @notice Pending cooldown period awaiting timelock expiry
     uint256 public pendingCooldownPeriod;
+    /// @notice Timestamp when pendingCooldownPeriod can be executed (0 = not queued)
     uint256 public pendingCooldownTimestamp;
 
     // ============ Errors ============
@@ -601,8 +617,12 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
     // ============ Multisig Functions ============
 
     /**
-     * @notice Receive funds from multisig for withdrawal processing
-     * @param amount Amount of USDC being sent
+     * @notice Receive funds back from multisig for withdrawal processing
+     * @param amount Amount of USDC being returned to vault
+     * @dev Called by multisig when vault needs liquidity to fulfill withdrawals.
+     *      Flow: Deposits forward excess USDC to multisig for strategy deployment.
+     *      When withdrawals need processing, multisig returns funds via this function.
+     *      Requires prior USDC approval from multisig to this vault.
      */
     function receiveFundsFromMultisig(uint256 amount) external nonReentrant onlyMultisig {
         bool success = usdc.transferFrom(msg.sender, address(this), amount);
@@ -942,7 +962,11 @@ contract USDCSavingsVault is IVault, ReentrancyGuard {
     // ============ Internal Functions ============
 
     /**
-     * @notice Forward excess USDC to multisig, keeping buffer
+     * @notice Forward excess USDC to multisig for strategy deployment
+     * @dev Called after deposits to send funds exceeding withdrawalBuffer to multisig.
+     *      The multisig deploys these funds to external on-chain yield strategies.
+     *      withdrawalBuffer is retained in vault for immediate withdrawal liquidity.
+     *      If balance <= withdrawalBuffer, no transfer occurs.
      */
     function _forwardToMultisig() internal {
         uint256 balance = usdc.balanceOf(address(this));

@@ -9,14 +9,35 @@ pragma solidity ^0.8.24;
 interface IRoleManager {
     // ============ Events ============
 
+    /// @notice Emitted when an operator's status is updated
+    /// @param operator Address being updated
+    /// @param status True if granted operator role, false if revoked
     event OperatorUpdated(address indexed operator, bool status);
+    /// @notice Emitted when all operations are paused
+    /// @param by Address that triggered the pause
     event Paused(address indexed by);
+    /// @notice Emitted when all operations are unpaused
+    /// @param by Address that triggered the unpause
     event Unpaused(address indexed by);
+    /// @notice Emitted when deposits are paused
+    /// @param by Address that triggered the pause
     event DepositsPaused(address indexed by);
+    /// @notice Emitted when deposits are unpaused
+    /// @param by Address that triggered the unpause
     event DepositsUnpaused(address indexed by);
+    /// @notice Emitted when withdrawals are paused
+    /// @param by Address that triggered the pause
     event WithdrawalsPaused(address indexed by);
+    /// @notice Emitted when withdrawals are unpaused
+    /// @param by Address that triggered the unpause
     event WithdrawalsUnpaused(address indexed by);
+    /// @notice Emitted when ownership transfer is initiated (two-step)
+    /// @param previousOwner Current owner initiating transfer
+    /// @param newOwner Address nominated to become new owner
     event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
+    /// @notice Emitted when ownership transfer is completed
+    /// @param previousOwner Former owner
+    /// @param newOwner New owner who accepted the transfer
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     // ============ View Functions ============

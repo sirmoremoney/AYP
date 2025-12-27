@@ -51,20 +51,32 @@ import {IRoleManager} from "./interfaces/IRoleManager.sol";
 contract RoleManager is IRoleManager {
     // ============ Storage ============
 
+    /// @notice Current owner with full administrative privileges
     address public owner;
+    /// @notice Address nominated to become the new owner (two-step transfer pattern)
+    /// @dev Must call acceptOwnership() to complete the transfer
     address public pendingOwner;
 
+    /// @notice Mapping of addresses authorized as operators
+    /// @dev Operators can fulfill withdrawals but cannot change configuration
     mapping(address => bool) public operators;
 
+    /// @notice Global pause flag - when true, all vault operations are blocked
     bool public paused;
+    /// @notice Deposits-only pause - when true, deposits blocked but withdrawals allowed
     bool public depositsPaused;
+    /// @notice Withdrawals-only pause - when true, withdrawals blocked but deposits allowed
     bool public withdrawalsPaused;
 
     // ============ Errors ============
 
+    /// @notice Thrown when non-owner calls an owner-only function
     error OnlyOwner();
+    /// @notice Thrown when non-operator calls an operator-only function
     error OnlyOperator();
+    /// @notice Thrown when zero address is provided where not allowed
     error ZeroAddress();
+    /// @notice Thrown when acceptOwnership() called by non-pending owner
     error NotPendingOwner();
 
     // ============ Constructor ============
@@ -84,11 +96,14 @@ contract RoleManager is IRoleManager {
 
     // ============ Modifiers ============
 
+    /// @notice Restricts function access to the current owner only
     modifier onlyOwner() {
         if (msg.sender != owner) revert OnlyOwner();
         _;
     }
 
+    /// @notice Restricts function access to operators OR the owner
+    /// @dev Owner implicitly has operator privileges even if not in operators mapping
     modifier onlyOperator() {
         if (!operators[msg.sender] && msg.sender != owner) revert OnlyOperator();
         _;

@@ -16,10 +16,14 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
  * onlyVault modifier, keeping authority assumptions in the Vault layer.
  */
 contract VaultShare is ERC20 {
+    /// @notice The vault contract that has exclusive mint/burn/escrow privileges
+    /// @dev Set once at construction and cannot be changed (immutable)
     address public immutable vault;
 
+    /// @notice Thrown when a non-vault address attempts a vault-only operation
     error OnlyVault();
 
+    /// @notice Restricts function access to the vault contract only
     modifier onlyVault() {
         if (msg.sender != vault) revert OnlyVault();
         _;
@@ -64,10 +68,14 @@ contract VaultShare is ERC20 {
      * @param to Destination address
      * @param amount Amount to transfer
      * @return success True if transfer succeeded
-     * @dev Vault can transfer without allowance (for escrow operations)
+     * @dev Override allows vault to transfer without allowance for escrow operations.
+     *      This is required for the withdrawal queue: when a user requests withdrawal,
+     *      the vault transfers their shares to itself (escrow) without needing approval.
+     *      This is safe because the vault is a trusted, immutable contract that only
+     *      uses this capability for the defined escrow flow.
      */
     function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
-        // Vault can transfer without allowance (trusted for escrow)
+        // Vault can transfer without allowance (trusted escrow contract)
         if (msg.sender == vault) {
             _transfer(from, to, amount);
             return true;
