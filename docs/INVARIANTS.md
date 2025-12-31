@@ -160,7 +160,7 @@ sharePrice = totalAssets() / totalShares()
 ### Statement
 
 Protocol fees SHALL:
-1. Be assessed only on positive changes to `totalAssets`
+1. Be assessed only on positive yield reports
 2. Be capped by `MAX_FEE_RATE` (50%)
 3. Be paid exclusively via minting new shares to Treasury
 
@@ -170,9 +170,9 @@ Fees SHALL NEVER cause a direct transfer of USDC from the Vault.
 
 ```
 fee_collected IF AND ONLY IF:
-  currentAssets > lastFeeHighWaterMark
+  yieldDelta > 0 in reportYieldAndCollectFees()
 
-fee_amount ≤ (currentAssets - lastFeeHighWaterMark) × feeRate
+fee_amount ≤ yieldDelta × feeRate
 feeRate ≤ MAX_FEE_RATE
 
 fee_payment:
@@ -184,22 +184,22 @@ fee_payment:
 
 **Code Structure:**
 ```solidity
-function _collectFees() internal {
-    if (currentAssets <= lastFeeHighWaterMark) return; // Only on profit
+function reportYieldAndCollectFees(int256 yieldDelta) external onlyOwner {
+    // Update accumulated yield
+    accumulatedYield += yieldDelta;
 
-    uint256 profit = currentAssets - lastFeeHighWaterMark;
-    uint256 fee = (profit * feeRate) / PRECISION;
-
-    assert(fee <= profit);  // Cannot exceed profit
-
-    // Fee paid via minting, NOT transfer
-    shares.mint(treasury, feeShares);
+    // Only collect fees on positive yield
+    if (yieldDelta > 0) {
+        uint256 fee = (uint256(yieldDelta) * feeRate) / PRECISION;
+        // Fee paid via minting, NOT transfer
+        shares.mint(treasury, feeShares);
+    }
 }
 ```
 
 **Runtime Assertion:**
 ```solidity
-assert(fee <= profit);
+// Fee only collected when yieldDelta > 0
 ```
 
 **Fuzz Test:**
@@ -283,6 +283,7 @@ function fulfillWithdrawals(uint256 count) external returns (uint256 processed, 
 |--------|-------------------|------------|
 | Double-spend withdrawal | I.2 | Share escrow |
 | Unauthorized USDC drain | I.1 | Share-burn requirement |
-| Fee extraction attack | I.4 | High water mark, profit-only |
+| Fee extraction attack | I.4 | Fees only on positive yield |
 | Selective NAV manipulation | I.3 | Uniform share price |
+| Yield manipulation | I.4 | Bounds checking + 1-day cooldown |
 | Queue DoS | I.5 | Graceful degradation |

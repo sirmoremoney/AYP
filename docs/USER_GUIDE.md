@@ -136,17 +136,18 @@ sharePrice = totalAssets / totalShares
 
 ## Fees
 
-The vault charges fees only on profits:
+The vault charges fees only on positive yield:
 
-- **When**: Only when NAV exceeds the previous high water mark
+- **When**: Only when positive yield is reported via `reportYieldAndCollectFees()`
 - **Rate**: Configurable (check `feeRate()`, max 50%)
 - **How**: New shares are minted to treasury, slightly diluting all holders
+- **No fee on losses**: If yield is negative, no fees are charged
 
 ### Example
 
-- NAV grows from 1,000,000 to 1,100,000 USDC (100k profit)
+- Owner reports 100,000 USDC yield from strategies
 - 20% fee rate → 20,000 USDC worth of shares minted to treasury
-- Your share of gains: 80,000 USDC
+- Your share of gains: 80,000 USDC (proportional to your share ownership)
 
 ## Deposit Limits
 

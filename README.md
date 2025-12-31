@@ -4,7 +4,7 @@ A secure, yield-bearing USDC vault with share-based NAV accounting and async wit
 
 ## Overview
 
-The USDC Savings Vault allows users to deposit USDC and receive shares representing their proportional ownership. Yield from off-chain strategies is reported via an oracle, and all shareholders benefit proportionally.
+The USDC Savings Vault allows users to deposit USDC and receive shares representing their proportional ownership. Yield from external strategies is reported by the owner, and all shareholders benefit proportionally.
 
 ### Key Features
 
@@ -19,14 +19,14 @@ The USDC Savings Vault allows users to deposit USDC and receive shares represent
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                        USDCSavingsVault                          │
-│         (OpenZeppelin ReentrancyGuard + IERC20)                  │
-└─────────────┬────────────────────┬────────────────────┬──────────┘
-              │                    │                    │
-              ▼                    ▼                    ▼
-      ┌───────────────┐    ┌───────────────┐    ┌───────────────┐
-      │  VaultShare   │    │StrategyOracle │    │  RoleManager  │
-      │ (OZ ERC20)    │    │               │    │               │
-      └───────────────┘    └───────────────┘    └───────────────┘
+│      (Internal yield tracking, ReentrancyGuard + IERC20)         │
+└─────────────────────────┬────────────────────┬───────────────────┘
+                          │                    │
+                          ▼                    ▼
+                  ┌───────────────┐    ┌───────────────┐
+                  │  VaultShare   │    │  RoleManager  │
+                  │  (OZ ERC20)   │    │  (Governance) │
+                  └───────────────┘    └───────────────┘
 ```
 
 ### OpenZeppelin Usage
