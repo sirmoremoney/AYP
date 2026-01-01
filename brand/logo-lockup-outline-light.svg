@@ -1,0 +1,32 @@
+<svg width="220" height="48" viewBox="0 0 220 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Logo lockup with border ring variant (light) -->
+
+  <!-- Circle with border -->
+  <circle cx="24" cy="24" r="23" fill="none" stroke="#FAFBFC" stroke-width="2"/>
+
+  <!-- L mark -->
+  <path
+    d="M 14 12
+       L 14 36
+       L 34 36"
+    stroke="#FAFBFC"
+    stroke-width="4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+
+  <!-- Gold dot -->
+  <circle cx="34" cy="36" r="2.5" fill="#C4A052"/>
+
+  <!-- "lazy" wordmark -->
+  <text
+    x="60"
+    y="34"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+    font-size="32"
+    font-weight="700"
+    fill="#FAFBFC"
+    letter-spacing="-0.03em"
+  >lazy</text>
+</svg>
