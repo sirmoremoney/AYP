@@ -1,0 +1,12 @@
+<svg width="120" height="40" viewBox="0 0 120 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- "lazy" wordmark - light version (for dark backgrounds) -->
+  <text
+    x="0"
+    y="32"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+    font-size="36"
+    font-weight="700"
+    fill="#FAFBFC"
+    letter-spacing="-0.03em"
+  >lazy</text>
+</svg>

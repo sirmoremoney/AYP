@@ -1,0 +1,22 @@
+<svg width="200" height="56" viewBox="0 0 200 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- "lazy" wordmark with tagline - light version -->
+  <text
+    x="0"
+    y="32"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+    font-size="36"
+    font-weight="700"
+    fill="#FAFBFC"
+    letter-spacing="-0.03em"
+  >lazy</text>
+
+  <text
+    x="0"
+    y="52"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+    font-size="14"
+    font-weight="400"
+    fill="#94A3B8"
+    letter-spacing="0.01em"
+  >Yield on autopilot.</text>
+</svg>

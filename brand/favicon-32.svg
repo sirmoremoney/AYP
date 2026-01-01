@@ -1,0 +1,19 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 32x32 favicon -->
+  <circle cx="16" cy="16" r="16" fill="#1a2332"/>
+
+  <!-- Simplified L mark -->
+  <path
+    d="M 10 8
+       L 10 24
+       L 22 24"
+    stroke="#FAFBFC"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+
+  <!-- Gold dot -->
+  <circle cx="22" cy="24" r="2" fill="#C4A052"/>
+</svg>

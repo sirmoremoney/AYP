@@ -1,0 +1,49 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- OG Image: 1200x630 for social sharing -->
+
+  <!-- Background: Lazy Navy -->
+  <rect width="1200" height="630" fill="#1a2332"/>
+
+  <!-- Subtle grid pattern -->
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#242d3d" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#grid)" opacity="0.3"/>
+
+  <!-- Logo wordmark -->
+  <text
+    x="600"
+    y="270"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+    font-size="120"
+    font-weight="700"
+    fill="#FAFBFC"
+    text-anchor="middle"
+    letter-spacing="-0.03em"
+  >lazy</text>
+
+  <!-- Tagline -->
+  <text
+    x="600"
+    y="350"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+    font-size="36"
+    font-weight="400"
+    fill="#64748B"
+    text-anchor="middle"
+  >Yield on autopilot.</text>
+
+  <!-- URL at bottom -->
+  <text
+    x="600"
+    y="560"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+    font-size="24"
+    font-weight="500"
+    fill="#C4A052"
+    text-anchor="middle"
+  >getlazy.xyz</text>
+
+</svg>

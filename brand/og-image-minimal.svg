@@ -1,0 +1,19 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- OG Image: Minimal version -->
+
+  <!-- Background: Lazy Navy -->
+  <rect width="1200" height="630" fill="#1a2332"/>
+
+  <!-- Logo wordmark centered -->
+  <text
+    x="600"
+    y="340"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+    font-size="140"
+    font-weight="700"
+    fill="#FAFBFC"
+    text-anchor="middle"
+    letter-spacing="-0.03em"
+  >lazy</text>
+
+</svg>

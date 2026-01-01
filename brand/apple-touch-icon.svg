@@ -1,0 +1,19 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 180x180 Apple touch icon -->
+  <rect width="180" height="180" rx="40" fill="#1a2332"/>
+
+  <!-- L mark -->
+  <path
+    d="M 55 45
+       L 55 135
+       L 125 135"
+    stroke="#FAFBFC"
+    stroke-width="16"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+
+  <!-- Gold dot -->
+  <circle cx="125" cy="135" r="8" fill="#C4A052"/>
+</svg>
