@@ -1,0 +1,32 @@
+<svg width="200" height="56" viewBox="0 0 200 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Feet-up icon + "lazy" wordmark lockup (for light backgrounds) -->
+
+  <!-- Icon circle -->
+  <circle cx="28" cy="28" r="28" fill="#1a2332"/>
+
+  <!-- Simplified feet -->
+  <ellipse cx="22" cy="16" rx="5" ry="4" fill="#FAFBFC"/>
+  <ellipse cx="34" cy="15" rx="5" ry="4" fill="#FAFBFC"/>
+
+  <!-- Legs -->
+  <line x1="22" y1="20" x2="22" y2="42" stroke="#FAFBFC" stroke-width="4" stroke-linecap="round"/>
+  <line x1="34" y1="19" x2="34" y2="42" stroke="#FAFBFC" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- Footrest -->
+  <line x1="12" y1="44" x2="44" y2="44" stroke="#FAFBFC" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Gold thought dot -->
+  <circle cx="46" cy="12" r="5" fill="#C4A052"/>
+
+  <!-- "lazy" wordmark -->
+  <text
+    x="68"
+    y="38"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+    font-size="32"
+    font-weight="700"
+    fill="#1a2332"
+    letter-spacing="-0.03em"
+  >lazy</text>
+
+</svg>
