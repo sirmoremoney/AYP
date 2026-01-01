@@ -1,0 +1,29 @@
+<svg width="400" height="400" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle: Lazy Navy -->
+  <circle cx="200" cy="200" r="200" fill="#1a2332"/>
+
+  <!-- Inner ring for depth -->
+  <circle cx="200" cy="200" r="170" stroke="#242d3d" stroke-width="2" fill="none"/>
+
+  <!-- "lz" text -->
+  <text
+    x="135"
+    y="235"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+    font-size="120"
+    font-weight="700"
+    fill="#FAFBFC"
+    letter-spacing="-0.05em"
+  >lz</text>
+
+  <!-- Dollar sign in gold, superscript style -->
+  <text
+    x="295"
+    y="160"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+    font-size="56"
+    font-weight="600"
+    fill="#C4A052"
+  >$</text>
+
+</svg>

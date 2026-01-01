@@ -1,0 +1,31 @@
+<svg width="400" height="400" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle: Lazy Navy -->
+  <circle cx="200" cy="200" r="200" fill="#1a2332"/>
+
+  <!-- Outer subtle ring -->
+  <circle cx="200" cy="200" r="185" stroke="#242d3d" stroke-width="2" fill="none"/>
+
+  <!-- "lazyUSD" stacked -->
+  <text
+    x="200"
+    y="175"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+    font-size="72"
+    font-weight="700"
+    fill="#FAFBFC"
+    text-anchor="middle"
+    letter-spacing="-0.03em"
+  >lazy</text>
+
+  <text
+    x="200"
+    y="260"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+    font-size="72"
+    font-weight="700"
+    fill="#C4A052"
+    text-anchor="middle"
+    letter-spacing="-0.02em"
+  >USD</text>
+
+</svg>
