@@ -1,0 +1,19 @@
+<svg width="1500" height="500" viewBox="0 0 1500 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background: Lazy Navy -->
+  <rect width="1500" height="500" fill="#1a2332"/>
+
+  <!-- Tagline: right-aligned, vertically centered -->
+  <text
+    x="1420"
+    y="262"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    font-size="44"
+    font-weight="500"
+    fill="#FAFBFC"
+    text-anchor="end"
+    letter-spacing="-0.01em"
+  >
+    Yield on autopilot.
+  </text>
+
+</svg>

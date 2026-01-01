@@ -1,0 +1,34 @@
+<svg width="1500" height="500" viewBox="0 0 1500 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background: Lazy Navy -->
+  <rect width="1500" height="500" fill="#1a2332"/>
+
+  <!-- Gold accent line -->
+  <rect x="80" y="245" width="60" height="4" rx="2" fill="#C4A052"/>
+
+  <!-- Wordmark -->
+  <text
+    x="80"
+    y="310"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    font-size="64"
+    font-weight="700"
+    fill="#FAFBFC"
+    letter-spacing="-0.03em"
+  >
+    lazy
+  </text>
+
+  <!-- Tagline on right -->
+  <text
+    x="1420"
+    y="290"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    font-size="32"
+    font-weight="400"
+    fill="#94A3B8"
+    text-anchor="end"
+  >
+    Yield on autopilot.
+  </text>
+
+</svg>
