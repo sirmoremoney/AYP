@@ -224,11 +224,12 @@
       id="waitlistForm"
       name="waitlist"
       method="POST"
+      action="/"
       data-netlify="true"
       netlify-honeypot="bot-field"
     >
       <input type="hidden" name="form-name" value="waitlist">
-      <p style="display:none"><input name="bot-field"></p>
+      <input type="hidden" name="bot-field">
       <input
         type="email"
         class="email-input"
@@ -266,22 +267,26 @@
       btn.disabled = true;
 
       try {
-        const response = await fetch('/', {
+        const formData = new FormData(form);
+        const response = await fetch(form.action || '/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams(new FormData(form)).toString()
+          body: new URLSearchParams(formData).toString()
         });
 
         if (response.ok) {
           document.getElementById('waitlistForm').classList.add('hidden');
           document.getElementById('successMessage').classList.add('show');
         } else {
-          throw new Error('Form submission failed');
+          console.error('Form error:', response.status, await response.text());
+          throw new Error('Submission failed');
         }
       } catch (error) {
+        console.error('Form error:', error);
         btn.textContent = originalText;
         btn.disabled = false;
-        alert('Something went wrong. Please try again.');
+        // Fallback: submit normally (will redirect to Netlify success page)
+        form.submit();
       }
     });
   </script>
