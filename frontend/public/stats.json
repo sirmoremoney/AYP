@@ -14,7 +14,10 @@
   },
   "depositorCount": 0,
   "depositCount": 0,
-  "updatedAt": "2026-01-07T19:45:17.767Z",
+  "apr": 10,
+  "aprSource": "static",
+  "updatedAt": "2026-01-07T19:53:12.778Z",
   "vaultAddress": "0xd53B68fB4eb907c3c1E348CD7d7bEDE34f763805",
-  "chainId": 1
+  "chainId": 1,
+  "lastYieldReportTime": "0"
 }

@@ -16,9 +16,12 @@ interface ProtocolStats {
   };
   depositorCount: number;
   depositCount: number;
+  apr: number;
+  aprSource: 'static' | 'calculated';
   updatedAt: string;
   vaultAddress: string;
   chainId: number;
+  lastYieldReportTime: string;
 }
 
 export function useProtocolStats() {

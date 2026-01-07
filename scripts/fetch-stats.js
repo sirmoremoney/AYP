@@ -11,6 +11,10 @@ const VAULT_ADDRESS = process.env.VAULT_ADDRESS || '0xd53B68fB4eb907c3c1E348CD7d
 const RPC_URL = process.env.ETH_RPC_URL || 'https://eth.llamarpc.com';
 // Block when the vault was deployed (update this after deployment)
 const DEPLOYMENT_BLOCK = process.env.DEPLOYMENT_BLOCK ? BigInt(process.env.DEPLOYMENT_BLOCK) : 21764000n;
+// Deployment timestamp (Unix seconds) - update after deployment
+const DEPLOYMENT_TIMESTAMP = process.env.DEPLOYMENT_TIMESTAMP ? Number(process.env.DEPLOYMENT_TIMESTAMP) : 1736279400;
+// Static APR to show before yield data is available (in percent)
+const STATIC_APR = 10;
 
 // Vault ABI (only what we need)
 const vaultAbi = [
@@ -50,6 +54,13 @@ const vaultAbi = [
     outputs: [{ name: '', type: 'uint256' }],
   },
   {
+    name: 'lastYieldReportTime',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
     name: 'Deposit',
     type: 'event',
     inputs: [
@@ -72,7 +83,7 @@ async function fetchStats() {
 
   try {
     // Fetch current contract state
-    const [totalAssets, totalSupply, sharePrice, accumulatedYield, pendingWithdrawalShares] =
+    const [totalAssets, totalSupply, sharePrice, accumulatedYield, pendingWithdrawalShares, lastYieldReportTime] =
       await Promise.all([
         client.readContract({
           address: VAULT_ADDRESS,
@@ -98,6 +109,11 @@ async function fetchStats() {
           address: VAULT_ADDRESS,
           abi: vaultAbi,
           functionName: 'pendingWithdrawalShares',
+        }),
+        client.readContract({
+          address: VAULT_ADDRESS,
+          abi: vaultAbi,
+          functionName: 'lastYieldReportTime',
         }),
       ]);
 
@@ -135,6 +151,38 @@ async function fetchStats() {
       console.warn('Depositor count will be 0. Consider using an RPC that supports historical logs.');
     }
 
+    // Calculate APR
+    let apr = STATIC_APR;
+    let aprSource = 'static';
+
+    // Only calculate dynamic APR if we have yield data and deposits
+    if (accumulatedYield > 0n && totalAssets > 0n && lastYieldReportTime > 0n) {
+      // Calculate principal (totalAssets minus accumulated yield)
+      const principal = totalAssets - BigInt(accumulatedYield);
+
+      if (principal > 0n) {
+        // Calculate time elapsed since deployment (in seconds)
+        const now = Math.floor(Date.now() / 1000);
+        const elapsedSeconds = now - DEPLOYMENT_TIMESTAMP;
+        const elapsedDays = elapsedSeconds / 86400;
+
+        // Only calculate if we have at least 1 day of data
+        if (elapsedDays >= 1) {
+          // APR = (yield / principal) * (365 / days) * 100
+          const yieldNum = Number(formatUnits(accumulatedYield, 6));
+          const principalNum = Number(formatUnits(principal, 6));
+
+          if (principalNum > 0) {
+            apr = (yieldNum / principalNum) * (365 / elapsedDays) * 100;
+            aprSource = 'calculated';
+
+            // Cap APR at reasonable bounds (0-100%)
+            apr = Math.max(0, Math.min(100, apr));
+          }
+        }
+      }
+    }
+
     const stats = {
       // Raw values (as strings to preserve precision)
       totalAssets: totalAssets.toString(),
@@ -157,16 +205,22 @@ async function fetchStats() {
       depositorCount: uniqueDepositors.size,
       depositCount: depositLogs.length,
 
+      // APR
+      apr: Math.round(apr * 100) / 100, // Round to 2 decimal places
+      aprSource, // 'static' or 'calculated'
+
       // Metadata
       updatedAt: new Date().toISOString(),
       vaultAddress: VAULT_ADDRESS,
       chainId: 1,
+      lastYieldReportTime: lastYieldReportTime.toString(),
     };
 
     console.log('\nStats:');
     console.log('  TVL:', stats.formatted.tvl, 'USDC');
     console.log('  Share Price:', stats.formatted.sharePrice);
     console.log('  Accumulated Yield:', stats.formatted.accumulatedYield, 'USDC');
+    console.log('  APR:', stats.apr + '%', `(${stats.aprSource})`);
     console.log('  Unique Depositors:', stats.depositorCount);
     console.log('  Total Deposits:', stats.depositCount);
 

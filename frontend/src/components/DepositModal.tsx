@@ -9,9 +9,10 @@ import {
   formatUsdc,
   parseUsdc,
 } from '@/hooks/useVault';
+import { useProtocolStats } from '@/hooks/useProtocolStats';
 import { formatUnits } from 'viem';
 import toast from 'react-hot-toast';
-import { ETHERSCAN_TX_URL, BASE_APR } from '@/config/constants';
+import { ETHERSCAN_TX_URL } from '@/config/constants';
 
 interface DepositModalProps {
   onClose: () => void;
@@ -23,6 +24,7 @@ export function DepositModal({ onClose }: DepositModalProps) {
   const { address } = useAccount();
   const { usdcBalance, usdcAllowance, refetch } = useUserData(address);
   const { sharePrice } = useVaultStats();
+  const { data: protocolStats } = useProtocolStats();
 
   const {
     approve,
@@ -153,8 +155,8 @@ export function DepositModal({ onClose }: DepositModalProps) {
             <span className="conversion-value">1 lazyUSD = {exchangeRate} USDC</span>
           </div>
           <div className="conversion-row">
-            <span className="conversion-label">Base APR</span>
-            <span className="conversion-value" style={{ color: 'var(--earn-green)' }}>{BASE_APR}%</span>
+            <span className="conversion-label">APR</span>
+            <span className="conversion-value" style={{ color: 'var(--earn-green)' }}>{protocolStats?.apr ?? 10}%</span>
           </div>
         </div>
 
