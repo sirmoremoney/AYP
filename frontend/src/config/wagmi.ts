@@ -10,7 +10,7 @@ export const CONTRACTS = {
 
 export const config = getDefaultConfig({
   appName: 'Lazy Protocol',
-  projectId: 'YOUR_WALLETCONNECT_PROJECT_ID', // Get from https://cloud.walletconnect.com
+  projectId: 'dbbf6d65778741aaa414531b7670d4a2',
   chains: [mainnet],
   ssr: false,
 });
