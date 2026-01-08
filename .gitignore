@@ -22,5 +22,5 @@ lcov.info
 
 # Local Netlify folder
 .netlify
-.claude
+.local-config
 .dev-instructions
