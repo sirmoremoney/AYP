@@ -5,7 +5,8 @@ import { useVaultStats, useUserData, formatUsdc, formatShares } from '@/hooks/us
 import { useProtocolStats } from '@/hooks/useProtocolStats';
 import { DepositModal } from '@/components/DepositModal';
 import { WithdrawModal } from '@/components/WithdrawModal';
-import { Shield, Clock, FileText } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Shield, Clock, FileText, Info, Eye, Activity, ArrowRight } from 'lucide-react';
 
 export function Home() {
   const [showDeposit, setShowDeposit] = useState(false);
@@ -245,6 +246,54 @@ export function Home() {
               When you're ready, claim your capital—plus everything it earned.
             </p>
           </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Transparency Section */}
+      <section className="section" id="transparency">
+        <div className="container">
+          <div className="section-header">
+            <h2 className="section-title">No black boxes.</h2>
+            <p className="section-subtitle">Trust, but verify.</p>
+          </div>
+
+          <div className="steps-grid">
+            <div className="step-card">
+              <div className="step-number">
+                <Info size={24} />
+              </div>
+              <h3 className="step-title">Onchain NAV</h3>
+              <p className="step-description">
+                Net Asset Value computed transparently onchain. No offchain oracles, no trust assumptions.
+              </p>
+            </div>
+
+            <div className="step-card">
+              <div className="step-number">
+                <Eye size={24} />
+              </div>
+              <h3 className="step-title">Visible positions</h3>
+              <p className="step-description">
+                Every asset, every position — fully verifiable. See exactly where your capital is working.
+              </p>
+            </div>
+
+            <div className="step-card">
+              <div className="step-number">
+                <Activity size={24} />
+              </div>
+              <h3 className="step-title">Onchain execution</h3>
+              <p className="step-description">
+                Positions held on Hyperliquid and Lighter. All trades, all movements — public and auditable.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: 'var(--space-xl)' }}>
+            <Link to="/backing" className="btn btn-secondary">
+              View Backing Details <ArrowRight size={16} />
+            </Link>
           </div>
         </div>
       </section>

@@ -41,6 +41,9 @@ export function Header() {
           >
             How it works
           </Link>
+          <Link to="/backing" className={`nav-link ${location.pathname === '/backing' ? 'active' : ''}`}>
+            Backing
+          </Link>
           <Link to="/docs" className={`nav-link ${location.pathname === '/docs' ? 'active' : ''}`}>
             Docs
           </Link>
