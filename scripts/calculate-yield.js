@@ -29,14 +29,8 @@ const TOKENS = {
   },
 };
 
-// CoinGecko IDs for price fetching
-const COINGECKO_IDS = {
-  ETH: 'ethereum',
-  WETH: 'ethereum',
-  weETH: 'ether-fi-staked-eth',
-  HYPE: 'hyperliquid',
-  USDC: 'usd-coin',
-};
+// Stablecoin symbols (always valued at $1)
+const STABLECOINS = ['USDC', 'USDT', 'DAI'];
 
 // ============================================
 // Clients
@@ -103,33 +97,16 @@ const vaultAbi = [
 ];
 
 // ============================================
-// Price Fetching
+// Price Helpers
 // ============================================
 
-async function fetchPrices() {
-  const ids = Object.values(COINGECKO_IDS).join(',');
-  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`;
-
-  try {
-    const response = await fetch(url);
-    const data = await response.json();
-
-    const prices = {};
-    for (const [symbol, id] of Object.entries(COINGECKO_IDS)) {
-      prices[symbol] = data[id]?.usd || 0;
-    }
-    return prices;
-  } catch (e) {
-    console.error('Failed to fetch prices:', e.message);
-    // Fallback prices
-    return {
-      ETH: 3500,
-      WETH: 3500,
-      weETH: 3700,
-      HYPE: 25,
-      USDC: 1,
-    };
+// Build entry price map from Lighter positions (for hedged assets)
+function buildEntryPrices(lighterPositions) {
+  const prices = {};
+  for (const pos of lighterPositions) {
+    prices[pos.market] = parseFloat(pos.entryPrice);
   }
+  return prices;
 }
 
 // ============================================
@@ -224,41 +201,76 @@ async function fetchHyperEvmBalances(address) {
 
 async function fetchPendlePositions(address) {
   try {
-    const response = await fetch(
+    // Fetch user positions
+    const posResponse = await fetch(
       `https://api-v2.pendle.finance/core/v1/dashboard/positions/database/${address}`
     );
 
-    if (!response.ok) {
-      console.warn('Pendle API error:', response.status);
-      return { positions: [], totalUsd: 0 };
+    if (!posResponse.ok) {
+      console.warn('Pendle API error:', posResponse.status);
+      return { positions: [], totalUsd: 0, totalHypeEquivalent: 0 };
     }
 
-    const data = await response.json();
+    const posData = await posResponse.json();
     const positions = [];
     let totalUsd = 0;
+    let totalHypeEquivalent = 0;
 
-    if (data?.positions) {
-      for (const chainPosition of data.positions) {
+    if (posData?.positions) {
+      for (const chainPosition of posData.positions) {
         for (const position of chainPosition.openPositions || []) {
           const ptData = position.pt;
           if (!ptData || parseFloat(ptData.balance) <= 0) continue;
 
+          const marketId = position.marketId;
+          const ptBalance = parseFloat(formatUnits(BigInt(ptData.balance), 18));
           const balanceUsd = ptData.valuation || 0;
           totalUsd += balanceUsd;
 
+          // Fetch market data to get PT price and underlying price
+          let hypeEquivalent = 0;
+          let ptPrice = 0;
+          let underlyingPrice = 0;
+
+          try {
+            const marketAddress = marketId.split('-')[1];
+            const chainId = marketId.split('-')[0];
+            const marketResponse = await fetch(
+              `https://api-v2.pendle.finance/core/v1/${chainId}/markets/${marketAddress}`
+            );
+
+            if (marketResponse.ok) {
+              const marketData = await marketResponse.json();
+              ptPrice = marketData.pt?.price?.usd || 0;
+              underlyingPrice = marketData.accountingAsset?.price?.usd || marketData.underlyingAsset?.price?.usd || 0;
+
+              if (ptPrice > 0 && underlyingPrice > 0) {
+                // HYPE equivalent = PT balance × (PT price / underlying price)
+                hypeEquivalent = ptBalance * (ptPrice / underlyingPrice);
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to fetch market data:', e.message);
+          }
+
+          totalHypeEquivalent += hypeEquivalent;
+
           positions.push({
-            marketId: position.marketId,
-            balance: formatUnits(BigInt(ptData.balance), 18),
+            marketId,
+            ptBalance,
             balanceUsd,
+            hypeEquivalent,
+            ptPrice,
+            underlyingPrice,
           });
         }
       }
     }
 
-    return { positions, totalUsd };
+    return { positions, totalUsd, totalHypeEquivalent };
   } catch (e) {
     console.warn('Failed to fetch Pendle positions:', e.message);
-    return { positions: [], totalUsd: 0 };
+    return { positions: [], totalUsd: 0, totalHypeEquivalent: 0 };
   }
 }
 
@@ -445,7 +457,7 @@ function saveNavHistory(history) {
 
 async function calculateYield() {
   console.log('='.repeat(60));
-  console.log('YIELD CALCULATION');
+  console.log('YIELD CALCULATION (Delta-Neutral)');
   console.log('='.repeat(60));
   console.log(`Time: ${new Date().toISOString()}`);
   console.log('');
@@ -454,7 +466,6 @@ async function calculateYield() {
   console.log('Fetching data...');
 
   const [
-    prices,
     multisigEthBalances,
     multisigHyperBalances,
     operatorHyperBalances,
@@ -463,7 +474,6 @@ async function calculateYield() {
     hyperliquidData,
     vaultData,
   ] = await Promise.all([
-    fetchPrices(),
     fetchEthereumBalances(MULTISIG_ADDRESS),
     fetchHyperEvmBalances(MULTISIG_ADDRESS),
     fetchHyperEvmBalances(OPERATOR_ADDRESS),
@@ -473,15 +483,18 @@ async function calculateYield() {
     fetchVaultData(),
   ]);
 
+  // 2. Build entry prices from Lighter positions (for hedged spot valuation)
+  const entryPrices = buildEntryPrices(lighterData.positions);
+
   console.log('');
-  console.log('PRICES:');
-  for (const [symbol, price] of Object.entries(prices)) {
-    console.log(`  ${symbol}: $${price}`);
+  console.log('HEDGE ENTRY PRICES (from Lighter):');
+  for (const [symbol, price] of Object.entries(entryPrices)) {
+    console.log(`  ${symbol}: $${price.toFixed(2)}`);
   }
 
-  // 2. Calculate spot holdings value
+  // 3. Calculate spot holdings value using entry prices (delta-neutral valuation)
   console.log('');
-  console.log('SPOT HOLDINGS:');
+  console.log('SPOT HOLDINGS (valued at hedge entry prices):');
 
   let spotTotalUsd = 0;
   const allSpotBalances = [
@@ -491,25 +504,90 @@ async function calculateYield() {
   ];
 
   for (const bal of allSpotBalances) {
-    const price = prices[bal.symbol] || 0;
+    let price;
+    let priceSource;
+
+    if (STABLECOINS.includes(bal.symbol)) {
+      // Stablecoins always $1
+      price = 1;
+      priceSource = 'stable';
+    } else if (entryPrices[bal.symbol]) {
+      // Hedged asset - use entry price
+      price = entryPrices[bal.symbol];
+      priceSource = 'entry';
+    } else {
+      // Unhedged asset - skip or warn
+      console.log(`  ${bal.symbol} (${bal.chain}): ${parseFloat(bal.balance).toFixed(4)} - UNHEDGED (skipped)`);
+      continue;
+    }
+
     const usdValue = parseFloat(bal.balance) * price;
     spotTotalUsd += usdValue;
-    console.log(`  ${bal.symbol} (${bal.chain}): ${parseFloat(bal.balance).toFixed(4)} × $${price} = $${usdValue.toFixed(2)}`);
+    console.log(`  ${bal.symbol} (${bal.chain}): ${parseFloat(bal.balance).toFixed(4)} × $${price.toFixed(2)} (${priceSource}) = $${usdValue.toFixed(2)}`);
   }
   console.log(`  SPOT TOTAL: $${spotTotalUsd.toFixed(2)}`);
 
-  // 3. Pendle positions
+  // 4. Calculate HYPE exposure and hedged/unhedged portions
   console.log('');
-  console.log('PENDLE PT:');
-  console.log(`  Positions: ${pendleData.positions.length}`);
-  console.log(`  PENDLE TOTAL: $${pendleData.totalUsd.toFixed(2)}`);
+  console.log('HYPE EXPOSURE ANALYSIS:');
 
-  // 4. Perp positions
+  // Get prices
+  const hypeEntryPrice = entryPrices['HYPE'] || 0;
+  const hypeCurrentPrice = pendleData.positions[0]?.underlyingPrice || hypeEntryPrice;
+
+  // Calculate total HYPE holdings (spot + PT equivalent)
+  let totalHypeHoldings = 0;
+
+  // Spot HYPE
+  const spotHype = allSpotBalances
+    .filter(b => b.symbol === 'HYPE')
+    .reduce((sum, b) => sum + parseFloat(b.balance), 0);
+  totalHypeHoldings += spotHype;
+  console.log(`  Spot HYPE:        ${spotHype.toFixed(2)} HYPE`);
+
+  // PT HYPE equivalent
+  const ptHypeEquiv = pendleData.totalHypeEquivalent || 0;
+  totalHypeHoldings += ptHypeEquiv;
+  console.log(`  PT HYPE equiv:    ${ptHypeEquiv.toFixed(2)} HYPE`);
+  console.log(`  ─────────────────────────`);
+  console.log(`  Total holdings:   ${totalHypeHoldings.toFixed(2)} HYPE`);
+
+  // Get total HYPE short from Lighter
+  const hypeShort = Math.abs(parseFloat(
+    lighterData.positions.find(p => p.market === 'HYPE')?.size || 0
+  ));
+  console.log(`  HYPE short:       ${hypeShort.toFixed(2)} HYPE`);
+
+  // Calculate hedged and unhedged portions
+  const hedgedAmount = Math.min(totalHypeHoldings, hypeShort);
+  const netExposure = totalHypeHoldings - hypeShort; // positive = extra, negative = debt
+
+  console.log(`  ─────────────────────────`);
+  console.log(`  Hedged:           ${hedgedAmount.toFixed(2)} HYPE @ $${hypeEntryPrice.toFixed(2)} (entry)`);
+
+  if (netExposure > 0) {
+    console.log(`  Unhedged (asset): ${netExposure.toFixed(2)} HYPE @ $${hypeCurrentPrice.toFixed(2)} (current)`);
+  } else if (netExposure < 0) {
+    console.log(`  Unhedged (DEBT):  ${Math.abs(netExposure).toFixed(2)} HYPE @ $${hypeCurrentPrice.toFixed(2)} (current)`);
+  } else {
+    console.log(`  Perfectly hedged!`);
+  }
+
+  // Calculate HYPE position value
+  const hedgedValue = hedgedAmount * hypeEntryPrice;
+  const unhedgedValue = netExposure * hypeCurrentPrice; // negative if debt
+  const totalHypeValue = hedgedValue + unhedgedValue;
+
+  console.log(`  ─────────────────────────`);
+  console.log(`  Hedged value:     $${hedgedValue.toFixed(2)}`);
+  console.log(`  Unhedged value:   $${unhedgedValue.toFixed(2)}`);
+  console.log(`  HYPE TOTAL:       $${totalHypeValue.toFixed(2)}`);
+
+  // 5. Perp positions (collateral only - unrealized PnL offsets spot price changes)
   console.log('');
-  console.log('LIGHTER PERP POSITIONS:');
+  console.log('LIGHTER (collateral only - hedged positions):');
   console.log(`  Collateral:      $${lighterData.collateral.toFixed(2)}`);
-  console.log(`  Unrealized PnL:  $${lighterData.unrealizedPnl.toFixed(2)}`);
-  console.log(`  Total Equity:    $${lighterData.equity.toFixed(2)}`);
+  console.log(`  Unrealized PnL:  $${lighterData.unrealizedPnl.toFixed(2)} (not counted - offsets spot)`);
 
   if (lighterData.positions.length > 0) {
     console.log('  Positions:');
@@ -519,23 +597,36 @@ async function calculateYield() {
     }
   }
 
-  console.log('');
-  console.log('HYPERLIQUID POSITIONS:');
-  console.log(`  Equity: $${hyperliquidData.equity.toFixed(2)}`);
+  if (hyperliquidData.equity > 0) {
+    console.log('');
+    console.log('HYPERLIQUID:');
+    console.log(`  Equity: $${hyperliquidData.equity.toFixed(2)}`);
+  }
 
-  const perpTotalUsd = lighterData.equity + hyperliquidData.equity;
-  console.log('');
-  console.log(`  PERP TOTAL: $${perpTotalUsd.toFixed(2)}`);
+  // 6. Calculate total NAV
+  // HYPE value (hedged + unhedged) + ETH (at entry) + USDC + Lighter collateral
+  const ethSpot = allSpotBalances
+    .filter(b => b.symbol === 'ETH')
+    .reduce((sum, b) => sum + parseFloat(b.balance), 0);
+  const ethEntryPrice = entryPrices['ETH'] || 0;
+  const ethValue = ethSpot * ethEntryPrice;
 
-  // 5. Calculate total NAV
-  const totalNav = spotTotalUsd + pendleData.totalUsd + perpTotalUsd;
+  const usdcBalance = allSpotBalances
+    .filter(b => STABLECOINS.includes(b.symbol))
+    .reduce((sum, b) => sum + parseFloat(b.balance), 0);
+
+  const totalNav = totalHypeValue + ethValue + usdcBalance + lighterData.collateral + hyperliquidData.equity;
 
   console.log('');
   console.log('='.repeat(60));
-  console.log('NAV SUMMARY:');
-  console.log(`  Spot holdings:    $${spotTotalUsd.toFixed(2)}`);
-  console.log(`  Pendle PT:        $${pendleData.totalUsd.toFixed(2)}`);
-  console.log(`  Perp equity:      $${perpTotalUsd.toFixed(2)}`);
+  console.log('NAV SUMMARY (Delta-Neutral Valuation):');
+  console.log(`  HYPE (hedged+unhedged): $${totalHypeValue.toFixed(2)}`);
+  console.log(`  ETH (at entry):   $${ethValue.toFixed(2)}`);
+  console.log(`  USDC:             $${usdcBalance.toFixed(2)}`);
+  console.log(`  Lighter collat:   $${lighterData.collateral.toFixed(2)}`);
+  if (hyperliquidData.equity > 0) {
+    console.log(`  Hyperliquid:      $${hyperliquidData.equity.toFixed(2)}`);
+  }
   console.log(`  ─────────────────────────`);
   console.log(`  TOTAL NAV:        $${totalNav.toFixed(2)}`);
   console.log('='.repeat(60));
@@ -583,11 +674,11 @@ async function calculateYield() {
     nav: totalNav,
     sharePrice: vaultData.sharePrice,
     totalSupply: vaultData.totalSupply,
-    spotUsd: spotTotalUsd,
-    pendleUsd: pendleData.totalUsd,
-    perpUsd: perpTotalUsd,
+    hypeValue: totalHypeValue,
+    ethValue,
+    usdcBalance,
     lighterCollateral: lighterData.collateral,
-    lighterUnrealizedPnl: lighterData.unrealizedPnl,
+    netHypeExposure: netExposure,
   });
 
   // Keep last 90 days
@@ -611,9 +702,10 @@ async function calculateYield() {
     sharePrice: vaultData.sharePrice,
     totalSupply: vaultData.totalSupply,
     breakdown: {
-      spot: spotTotalUsd,
-      pendle: pendleData.totalUsd,
-      perp: perpTotalUsd,
+      hype: totalHypeValue,
+      eth: ethValue,
+      usdc: usdcBalance,
+      lighterCollateral: lighterData.collateral,
     },
   };
 }
