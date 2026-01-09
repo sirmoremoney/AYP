@@ -20,6 +20,12 @@ lcov.info
 # macOS
 .DS_Store
 
+# Node
+node_modules/
+
+# Generated data
+data/
+
 # Local Netlify folder
 .netlify
 .local-config
