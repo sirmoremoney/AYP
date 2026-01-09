@@ -11,8 +11,8 @@ const VAULT_ADDRESS = process.env.VAULT_ADDRESS || '0xd53B68fB4eb907c3c1E348CD7d
 const RPC_URL = process.env.ETH_RPC_URL || 'https://eth.llamarpc.com';
 // Block when the vault was deployed (update this after deployment)
 const DEPLOYMENT_BLOCK = process.env.DEPLOYMENT_BLOCK ? BigInt(process.env.DEPLOYMENT_BLOCK) : 21764000n;
-// Deployment timestamp (Unix seconds) - update after deployment
-const DEPLOYMENT_TIMESTAMP = process.env.DEPLOYMENT_TIMESTAMP ? Number(process.env.DEPLOYMENT_TIMESTAMP) : 1736279400;
+// Deployment timestamp (Unix seconds) - first real deposit: Jan 8, 2026 ~14:00 UTC
+const DEPLOYMENT_TIMESTAMP = process.env.DEPLOYMENT_TIMESTAMP ? Number(process.env.DEPLOYMENT_TIMESTAMP) : 1767879833;
 // Static APR to show before yield data is available (in percent)
 const STATIC_APR = 10;
 
