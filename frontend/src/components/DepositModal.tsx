@@ -50,8 +50,9 @@ export function DepositModal({ onClose }: DepositModalProps) {
     ? (parsedAmount * BigInt(1e18)) / sharePrice
     : 0n;
 
+  // sharePrice is scaled to 6 decimals (1e6 = 1 USDC per share)
   const exchangeRate = sharePrice
-    ? Number(formatUnits(sharePrice, 18)).toFixed(4)
+    ? Number(formatUnits(sharePrice, 6)).toFixed(4)
     : '1.0000';
 
   // Handle approve success

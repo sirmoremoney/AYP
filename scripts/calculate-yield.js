@@ -15,6 +15,10 @@ const OPERATOR_ADDRESS = '0xF466ad87c98f50473Cf4Fe32CdF8db652F9E36D6';
 const VAULT_ADDRESS = '0xd53B68fB4eb907c3c1E348CD7d7bEDE34f763805';
 
 const ETH_RPC = process.env.ETH_RPC_URL || 'https://eth.llamarpc.com';
+
+// Entry/exit cost rates for deploying/unwinding capital
+const ENTRY_COST_RATE = 0.00055;  // 0.055% on deposits
+const EXIT_COST_RATE = 0.00055;   // 0.055% on withdrawals
 const HYPEREVM_RPC = 'https://rpc.hyperliquid.xyz/evm';
 
 // Token addresses
@@ -94,7 +98,22 @@ const vaultAbi = [
     inputs: [],
     outputs: [{ name: '', type: 'int256' }],
   },
+  {
+    name: 'totalDeposited',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'totalWithdrawn',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
 ];
+
 
 // ============================================
 // Price Helpers
@@ -391,7 +410,7 @@ async function fetchHyperliquidEquity(address) {
 
 async function fetchVaultData() {
   try {
-    const [sharePrice, totalSupply, totalAssets, accumulatedYield] = await Promise.all([
+    const [sharePrice, totalSupply, totalAssets, accumulatedYield, totalDeposited, totalWithdrawn] = await Promise.all([
       ethClient.readContract({
         address: VAULT_ADDRESS,
         abi: vaultAbi,
@@ -412,6 +431,16 @@ async function fetchVaultData() {
         abi: vaultAbi,
         functionName: 'accumulatedYield',
       }),
+      ethClient.readContract({
+        address: VAULT_ADDRESS,
+        abi: vaultAbi,
+        functionName: 'totalDeposited',
+      }),
+      ethClient.readContract({
+        address: VAULT_ADDRESS,
+        abi: vaultAbi,
+        functionName: 'totalWithdrawn',
+      }),
     ]);
 
     return {
@@ -419,12 +448,21 @@ async function fetchVaultData() {
       totalSupply: parseFloat(formatUnits(totalSupply, 18)),
       totalAssets: parseFloat(formatUnits(totalAssets, 6)),
       accumulatedYield: parseFloat(formatUnits(accumulatedYield, 6)),
+      totalDeposited: parseFloat(formatUnits(totalDeposited, 6)),
+      totalWithdrawn: parseFloat(formatUnits(totalWithdrawn, 6)),
     };
   } catch (e) {
     console.error('Failed to fetch vault data:', e.message);
     throw e;
   }
 }
+
+// ============================================
+// Deposit/Withdrawal Volume Tracking (using vault state)
+// ============================================
+
+// Uses vault's totalDeposited and totalWithdrawn state variables
+// instead of event logs (avoids RPC rate limits)
 
 // ============================================
 // NAV History
@@ -462,6 +500,10 @@ async function calculateYield() {
   console.log(`Time: ${new Date().toISOString()}`);
   console.log('');
 
+  // Load history to get previous state
+  const history = loadNavHistory();
+  const lastEntry = history.entries[history.entries.length - 1];
+
   // 1. Fetch all data in parallel
   console.log('Fetching data...');
 
@@ -482,6 +524,12 @@ async function calculateYield() {
     fetchHyperliquidEquity(OPERATOR_ADDRESS),
     fetchVaultData(),
   ]);
+
+  // Calculate deposit/withdrawal deltas from vault state
+  const prevDeposited = lastEntry?.cumulativeDeposited || 0;
+  const prevWithdrawn = lastEntry?.cumulativeWithdrawn || 0;
+  const newDeposits = Math.max(0, vaultData.totalDeposited - prevDeposited);
+  const newWithdrawals = Math.max(0, vaultData.totalWithdrawn - prevWithdrawn);
 
   // 2. Build entry prices from Lighter positions (for hedged spot valuation)
   const entryPrices = buildEntryPrices(lighterData.positions);
@@ -639,21 +687,39 @@ async function calculateYield() {
   console.log(`  Vault totalAssets:    $${vaultData.totalAssets.toFixed(2)}`);
   console.log(`  Accumulated Yield:    $${vaultData.accumulatedYield.toFixed(2)}`);
 
-  // 7. Calculate unreported yield
-  const unreportedYield = totalNav - vaultData.totalAssets;
+  // 7. Calculate entry/exit costs (socialized)
+  const entryCosts = newDeposits * ENTRY_COST_RATE;
+  const exitCosts = newWithdrawals * EXIT_COST_RATE;
+  const entryExitCosts = entryCosts + exitCosts;
+  const totalFlowVolume = newDeposits + newWithdrawals;
+
+  console.log('');
+  console.log('='.repeat(60));
+  console.log('ENTRY/EXIT COSTS (socialized):');
+  console.log(`  New deposits:     $${newDeposits.toFixed(2)} × ${(ENTRY_COST_RATE * 100).toFixed(3)}% = -$${entryCosts.toFixed(2)}`);
+  console.log(`  New withdrawals:  $${newWithdrawals.toFixed(2)} × ${(EXIT_COST_RATE * 100).toFixed(3)}% = -$${exitCosts.toFixed(2)}`);
+  console.log(`  ─────────────────────────`);
+  console.log(`  TOTAL ENTRY/EXIT COSTS: -$${entryExitCosts.toFixed(2)}`);
+  console.log(`  (Cumulative: deposited $${vaultData.totalDeposited.toFixed(2)}, withdrawn $${vaultData.totalWithdrawn.toFixed(2)})`);
+  console.log('='.repeat(60));
+
+  // 8. Calculate unreported yield (minus entry/exit costs)
+  const grossYield = totalNav - vaultData.totalAssets;
+  const unreportedYield = grossYield - entryExitCosts;
 
   console.log('');
   console.log('='.repeat(60));
   console.log('YIELD CALCULATION:');
   console.log(`  True NAV:             $${totalNav.toFixed(2)}`);
   console.log(`  Vault thinks NAV is:  $${vaultData.totalAssets.toFixed(2)}`);
+  console.log(`  Gross yield:          $${grossYield.toFixed(2)}`);
+  console.log(`  Entry/exit costs:     -$${entryExitCosts.toFixed(2)}`);
   console.log(`  ─────────────────────────`);
-  console.log(`  UNREPORTED YIELD:     $${unreportedYield.toFixed(2)}`);
+  console.log(`  NET UNREPORTED YIELD: $${unreportedYield.toFixed(2)}`);
   console.log('='.repeat(60));
 
-  // 8. Load history and calculate PPS-based yield
-  const history = loadNavHistory();
-  const yesterday = history.entries[history.entries.length - 1];
+  // 9. Calculate PPS-based yield (using history loaded earlier)
+  const yesterday = lastEntry;
 
   if (yesterday) {
     const ppsDelta = vaultData.sharePrice - yesterday.sharePrice;
@@ -668,7 +734,7 @@ async function calculateYield() {
     console.log(`  Yield (PPS × Shares): $${yieldFromPps.toFixed(2)}`);
   }
 
-  // 9. Save today's data
+  // 10. Save today's data
   history.entries.push({
     timestamp: new Date().toISOString(),
     nav: totalNav,
@@ -679,6 +745,12 @@ async function calculateYield() {
     usdcBalance,
     lighterCollateral: lighterData.collateral,
     netHypeExposure: netExposure,
+    // Cumulative flow tracking for cost socialization
+    cumulativeDeposited: vaultData.totalDeposited,
+    cumulativeWithdrawn: vaultData.totalWithdrawn,
+    newDeposits,
+    newWithdrawals,
+    entryExitCosts,
   });
 
   // Keep last 90 days
@@ -688,7 +760,7 @@ async function calculateYield() {
 
   saveNavHistory(history);
 
-  // 10. Output for reporting
+  // 11. Output for reporting
   console.log('');
   console.log('='.repeat(60));
   console.log('TO REPORT THIS YIELD:');
@@ -698,9 +770,18 @@ async function calculateYield() {
   return {
     nav: totalNav,
     vaultTotalAssets: vaultData.totalAssets,
+    grossYield,
+    entryExitCosts,
     unreportedYield,
     sharePrice: vaultData.sharePrice,
     totalSupply: vaultData.totalSupply,
+    flows: {
+      newDeposits,
+      newWithdrawals,
+      totalVolume: totalFlowVolume,
+      cumulativeDeposited: vaultData.totalDeposited,
+      cumulativeWithdrawn: vaultData.totalWithdrawn,
+    },
     breakdown: {
       hype: totalHypeValue,
       eth: ethValue,
