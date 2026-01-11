@@ -18,6 +18,7 @@ interface ProtocolStats {
   depositCount: number;
   apr: number;
   aprSource: 'static' | 'calculated';
+  aprPeriod: '7d' | 'inception' | 'static';
   updatedAt: string;
   vaultAddress: string;
   chainId: number;
