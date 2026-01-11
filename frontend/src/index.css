@@ -1427,6 +1427,37 @@ h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.4; }
 .position-pnl.positive .value { color: var(--earn-green); }
 .position-pnl.negative .value { color: var(--risk-red); }
 
+.position-size {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--lazy-navy);
+}
+
+.position-entry {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--slate);
+  margin-left: var(--space-xs);
+}
+
+.position-pnl {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  margin-left: auto;
+}
+
+.position-pnl.positive { color: var(--earn-green); }
+.position-pnl.negative { color: var(--risk-red); }
+
+.address-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--slate);
+  margin-right: var(--space-sm);
+  min-width: 50px;
+}
+
 /* Balance List */
 .balance-list {
   display: flex;

@@ -8,6 +8,9 @@ const MULTISIG_ADDRESS = '0x0FBCe7F3678467f7F7313fcB2C9D1603431Ad666';
 // Operator wallet - for apps without Safe support
 const OPERATOR_ADDRESS = '0xF466ad87c98f50473Cf4Fe32CdF8db652F9E36D6';
 
+// Operator Solana wallet
+const OPERATOR_SOLANA_ADDRESS = '1AxbVeo57DHrMghgWDL5d25j394LDPdwMLEtHHYTkgU';
+
 // Explorer links
 const EXPLORERS = {
   multisig: {
@@ -19,6 +22,7 @@ const EXPLORERS = {
   operator: {
     hypurrscan: `https://hypurrscan.io/address/${OPERATOR_ADDRESS}`,
     hyperevm: `https://hyperevmscan.io/address/${OPERATOR_ADDRESS}`,
+    solscan: `https://solscan.io/account/${OPERATOR_SOLANA_ADDRESS}`,
   },
 };
 
@@ -102,8 +106,14 @@ export function Backing() {
                 Executes on venues without Safe support. Same transparency.
               </p>
               <div className="wallet-card-address">
+                <span className="address-label">EVM</span>
                 <code>{OPERATOR_ADDRESS}</code>
                 <CopyButton text={OPERATOR_ADDRESS} />
+              </div>
+              <div className="wallet-card-address" style={{ marginTop: '8px' }}>
+                <span className="address-label">Solana</span>
+                <code>{OPERATOR_SOLANA_ADDRESS}</code>
+                <CopyButton text={OPERATOR_SOLANA_ADDRESS} />
               </div>
               <div className="wallet-card-links">
                 <a href={EXPLORERS.operator.hypurrscan} target="_blank" rel="noopener noreferrer">
@@ -111,6 +121,9 @@ export function Backing() {
                 </a>
                 <a href={EXPLORERS.operator.hyperevm} target="_blank" rel="noopener noreferrer">
                   HyperEVM <ExternalLink size={12} />
+                </a>
+                <a href={EXPLORERS.operator.solscan} target="_blank" rel="noopener noreferrer">
+                  Solscan <ExternalLink size={12} />
                 </a>
               </div>
             </div>
@@ -153,10 +166,9 @@ export function Backing() {
             <h4>Then the spot earns.</h4>
             <p>The 70% spot holdings are deployed into yield-bearing positions:</p>
             <div className="yield-assets">
-              <span>stHYPE</span>
-              <span>stETH</span>
-              <span>jitoSOL</span>
               <span>Pendle PT</span>
+              <span>Jupiter Lending</span>
+              <span>Validator Staking</span>
             </div>
           </div>
 
@@ -185,9 +197,9 @@ export function Backing() {
               <span className="yield-source-tag">From the 30%</span>
             </div>
             <div className="yield-source-card">
-              <h4>Staking & PT Yields</h4>
+              <h4>Lending & PT Yields</h4>
               <p>
-                Spot holdings earn staking rewards (stHYPE, stETH, jitoSOL)
+                Spot holdings earn lending yields (Jupiter Lend), staking rewards,
                 or fixed PT yields via Pendle.
               </p>
               <span className="yield-source-tag">From the 70%</span>
