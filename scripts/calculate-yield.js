@@ -877,10 +877,24 @@ async function calculateYield() {
     }
   }
 
+  // Calculate Hyperliquid total unrealized PnL and collateral
+  let hyperliquidTotalUnrealizedPnl = 0;
+  if (hyperliquidData.positions.length > 0) {
+    for (const pos of hyperliquidData.positions) {
+      const position = pos.position || pos;
+      const unrealizedPnl = parseFloat(position.unrealizedPnl || pos.unrealizedPnl || 0);
+      hyperliquidTotalUnrealizedPnl += unrealizedPnl;
+    }
+  }
+  // Collateral = Equity - Unrealized PnL (since equity = collateral + unrealizedPnl)
+  const hyperliquidCollateral = hyperliquidData.equity - hyperliquidTotalUnrealizedPnl;
+
   if (hyperliquidData.equity > 0 || hyperliquidData.positions.length > 0) {
     console.log('');
     console.log('HYPERLIQUID:');
     console.log(`  Equity: $${hyperliquidData.equity.toFixed(2)}`);
+    console.log(`  Unrealized PnL: $${hyperliquidTotalUnrealizedPnl.toFixed(2)} (not counted - offsets spot)`);
+    console.log(`  Collateral: $${hyperliquidCollateral.toFixed(2)}`);
     if (hyperliquidData.positions.length > 0) {
       console.log('  Positions:');
       for (const pos of hyperliquidData.positions) {
@@ -976,7 +990,7 @@ async function calculateYield() {
     .filter(b => STABLECOINS.includes(b.symbol))
     .reduce((sum, b) => sum + parseFloat(b.balance), 0);
 
-  const totalNav = totalHypeValue + ethValue + usdcBalance + lighterData.collateral + hyperliquidData.equity + solValue;
+  const totalNav = totalHypeValue + ethValue + usdcBalance + lighterData.collateral + hyperliquidCollateral + solValue;
 
   console.log('');
   console.log('='.repeat(60));
@@ -986,8 +1000,8 @@ async function calculateYield() {
   console.log(`  ETH (at entry):   $${ethValue.toFixed(2)}`);
   console.log(`  USDC:             $${usdcBalance.toFixed(2)}`);
   console.log(`  Lighter collat:   $${lighterData.collateral.toFixed(2)}`);
-  if (hyperliquidData.equity > 0) {
-    console.log(`  Hyperliquid:      $${hyperliquidData.equity.toFixed(2)}`);
+  if (hyperliquidCollateral > 0) {
+    console.log(`  Hyperliquid col:  $${hyperliquidCollateral.toFixed(2)}`);
   }
   console.log(`  ─────────────────────────`);
   console.log(`  TOTAL NAV:        $${totalNav.toFixed(2)}`);
