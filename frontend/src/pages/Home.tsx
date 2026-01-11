@@ -8,6 +8,15 @@ import { WithdrawModal } from '@/components/WithdrawModal';
 import { Link } from 'react-router-dom';
 import { Shield, Clock, FileText, Info, Eye, Activity, ArrowRight } from 'lucide-react';
 
+// Vault launch date (January 8, 2025)
+const LAUNCH_DATE = new Date('2025-01-08T00:00:00Z');
+
+function getDaysLive(): number {
+  const now = new Date();
+  const diffMs = now.getTime() - LAUNCH_DATE.getTime();
+  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+}
+
 export function Home() {
   const [showDeposit, setShowDeposit] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
@@ -69,12 +78,12 @@ export function Home() {
               <div className="stat-label">APR</div>
             </div>
             <div className="stat-item">
-              <div className="stat-value">{protocolStats?.depositorCount ?? '—'}</div>
-              <div className="stat-label">Depositors</div>
-            </div>
-            <div className="stat-item">
               <div className="stat-value">{isLoading ? '—' : `$${yieldDistributed}`}</div>
               <div className="stat-label">Yield Distributed</div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-value">{getDaysLive()}</div>
+              <div className="stat-label">Days Live</div>
             </div>
           </div>
         </div>
