@@ -110,6 +110,11 @@ export function Home() {
               </div>
             </div>
 
+            <div className="vault-notice">
+              <Clock size={14} />
+              <span>Designed for patient capital · Up to 7-day withdrawal cooldown</span>
+            </div>
+
             <div className="vault-user-section">
               <div className="vault-user-label">Your balance</div>
               <div className="vault-user-balance">

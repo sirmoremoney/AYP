@@ -1,4 +1,4 @@
-import { ExternalLink, Copy, Check, Shield, Activity } from 'lucide-react';
+import { ExternalLink, Copy, Check, Shield, Activity, Clock, TrendingUp } from 'lucide-react';
 import { LiveBackingData } from '@/components/BackingData';
 import { useState } from 'react';
 
@@ -209,6 +209,59 @@ export function Backing() {
           <p className="yield-note">
             Rates fluctuate. That's DeFi. Current vault APY is always shown on the{' '}
             <a href="/">deposit page</a>.
+          </p>
+        </div>
+      </section>
+
+      {/* Patient Capital */}
+      <section className="section">
+        <div className="container">
+          <div className="section-header">
+            <h2 className="section-title">Built for patient capital.</h2>
+            <p className="section-subtitle">Time is the strategy. Cooldowns protect everyone.</p>
+          </div>
+
+          <div className="patient-capital-grid">
+            <div className="patient-capital-card">
+              <div className="patient-capital-icon">
+                <TrendingUp size={24} />
+              </div>
+              <h4>Compounding takes time</h4>
+              <p>
+                Delta-neutral strategies need time to generate meaningful yield.
+                Funding rates compound. PT positions mature. Rushing in and out
+                destroys value for everyone.
+              </p>
+            </div>
+
+            <div className="patient-capital-card">
+              <div className="patient-capital-icon">
+                <Clock size={24} />
+              </div>
+              <h4>Up to 7-day cooldown</h4>
+              <p>
+                Withdrawal requests have a cooldown period before they can be claimed.
+                This gives the strategy time to unwind positions safely — protecting
+                both your capital and others' yields.
+              </p>
+            </div>
+
+            <div className="patient-capital-card">
+              <div className="patient-capital-icon">
+                <Shield size={24} />
+              </div>
+              <h4>Protects patient depositors</h4>
+              <p>
+                Quick exits hurt everyone. The cooldown ensures capital isn't pulled
+                during volatile periods, preserving yield for those who stay.
+                Patient capital, patient returns.
+              </p>
+            </div>
+          </div>
+
+          <p className="patient-capital-note">
+            This vault is designed for depositors who understand that real yield takes time.
+            If you need instant liquidity, this isn't the right fit.
           </p>
         </div>
       </section>
